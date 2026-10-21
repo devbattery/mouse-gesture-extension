@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Glide · 마우스 제스처</title>
+  <link rel="stylesheet" href="options.css">
+  <script src="shared.js" defer></script>
+  <script src="options.js" defer></script>
+</head>
+<body>
+  <main>
+    <header>
+      <a class="brand" href="options.html" aria-label="Glide 홈"><span class="mark" aria-hidden="true">↳</span>glide<span class="tag">MOUSE GESTURES</span></a>
+      <label class="toggle"><input id="enabled" type="checkbox" role="switch" checked> 제스처 사용</label>
+    </header>
+    <section class="intro">
+      <p class="eyebrow">LESS CLICKING. MORE FLOW.</p>
+      <h1>우클릭하고,<br>가볍게 그리세요.</h1>
+      <p class="description">마우스를 움직이는 작은 습관.<br>뒤로 가기부터 탭 정리까지, 손끝에서 바로.</p>
+      <div class="instructions"><span><kbd>우클릭 유지</kbd></span><b>→</b><span>방향 그리기</span><b>→</b><span>버튼 놓기</span></div>
+      <div class="hero-art" aria-hidden="true"><svg viewBox="0 0 280 170"><defs><linearGradient id="stroke"><stop stop-color="#b6a7ff"/><stop offset="1" stop-color="#7565ed"/></linearGradient></defs><path d="M35 35 C35 70 28 112 72 112 L216 112" fill="none" stroke="url(#stroke)" stroke-width="9" stroke-linecap="round"/><path d="m203 97 17 15-17 15" fill="none" stroke="#7565ed" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/><circle cx="35" cy="35" r="6" fill="#cfc6ff"/></svg><span>↓ → <small>탭 닫기</small></span></div>
+    </section>
+    <section class="panel">
+      <div class="section-heading"><div><h2>나의 제스처</h2><p>실행할 동작을 고르거나, 단축키를 직접 지정하세요.</p></div><button id="add" type="button" class="secondary">＋ 제스처 추가</button></div>
+      <div class="table-wrap"><table><thead><tr><th scope="col">제스처</th><th scope="col">실행할 동작</th><th scope="col"><span class="sr-only">삭제</span></th></tr></thead><tbody id="rules"></tbody></table></div>
+      <p id="empty" hidden>아직 제스처가 없습니다. 자주 쓰는 동작을 추가해 보세요.</p>
+    </section>
+    <section class="panel sensitivity"><div><h2>손에 맞는 감도</h2><p>짧은 움직임도 빠르게, 또는 조금 더 확실하게.</p></div><div class="slider"><label for="threshold">민감하게</label><input id="threshold" type="range" min="12" max="48" step="1" value="22" aria-label="제스처 인식 최소 거리"><label for="threshold">안정적으로</label><output id="distance" for="threshold">22 px</output></div></section>
+    <aside class="tips"><p><strong>내 단축키 그대로.</strong> <kbd>Ctrl+T</kbd>처럼 문자로 입력하거나 ‘키로 입력’을 누르세요. 브라우저가 먼저 가로채는 조합은 문자로 입력하면 됩니다. 지원되는 브라우저 조합은 해당 동작을 실행하고, 나머지는 웹페이지 키 이벤트로 전달합니다. 주소창·브라우저 메뉴·다른 앱 단축키는 실행할 수 없으며, 웹사이트가 가짜 키 입력을 거부하면 동작하지 않습니다.</p><p><strong>가끔은 그냥 우클릭.</strong> 움직이지 않고 놓으면 기본 메뉴가 열립니다. <kbd>Shift + 우클릭</kbd>은 항상 기본 메뉴, <kbd>Esc</kbd>는 제스처 취소입니다.</p><p>설정·새 탭·웹 스토어 같은 브라우저 보호 페이지에서는 확장 프로그램이 작동하지 않습니다. 설치 후 이미 열려 있던 웹페이지는 한 번 새로고침해 주세요.</p></aside>
+    <footer><button id="reset" type="button" class="text-button">기본 제스처로 되돌리기</button><div class="save-area"><span id="status" role="status" aria-live="polite"></span><button id="save" type="button" class="primary" disabled>변경사항 저장</button></div></footer>
+    <p class="privacy">기록 수집 없이 · 외부 통신 없이 · 이 브라우저에만 저장</p>
+  </main>
+  <dialog id="recorder" aria-labelledby="record-title">
+    <div class="dialog-heading"><div><p class="eyebrow">DRAW YOUR GESTURE</p><h2 id="record-title">제스처 그리기</h2></div><button id="cancel-record" type="button" class="icon-button" aria-label="닫기">×</button></div>
+    <p>아래 영역에서 우클릭한 채로 그린 뒤 놓으세요.<br>← → ↑ ↓ 방향을 이어서, 최대 12방향까지 사용할 수 있습니다.</p>
+    <div id="draw-area"><canvas id="record-canvas"></canvas><span id="record-placeholder">우클릭 + 드래그</span></div>
+    <div class="record-result"><strong id="recorded" aria-live="polite">아직 그리지 않았어요</strong><span id="record-error" role="status"></span></div>
+    <div class="record-binding"><label>실행할 동작 / 단축키</label><div id="record-binding"></div></div>
+    <div class="dialog-footer"><button id="clear-record" type="button" class="secondary">다시 그리기</button><button id="use-record" type="button" class="primary" disabled>이 제스처 사용</button></div>
+  </dialog>
+</body>
+</html>
