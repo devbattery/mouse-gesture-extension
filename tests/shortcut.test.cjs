@@ -35,6 +35,7 @@ test("punctuation and plus round-trip without changing the combination", () => {
 
 test("maps supported browser combinations without claiming unknown keys are native", () => {
   for (const [input, expected] of [["Ctrl+T", "newTab"], ["Ctrl+W", "closeTab"], ["Cmd+R", "reload"],
+    ["Ctrl+N", "newWindow"], ["Cmd+N", "newWindow"],
     ["F5", "reload"], ["Ctrl+Shift+T", "restoreTab"], ["Cmd+Shift+T", "restoreTab"],
     ["Alt+Left", "back"], ["Cmd+]", "forward"], ["Ctrl+Tab", "nextTab"],
     ["Ctrl+Shift+Tab", "previousTab"], ["Ctrl+Home", "scrollTop"], ["Ctrl+End", "scrollBottom"]]) {
@@ -61,6 +62,7 @@ test("preserves old settings and validates and retains custom keyboard bindings"
   const value = kit.validateSettings({ ...old, rules: [...old.rules, { gesture: "RD", action: "keyboard", shortcut: "control+t" }] });
   assert.equal(value.rules.at(-1).shortcut, "Ctrl+T");
   assert.match(kit.ruleLabel(value.rules.at(-1)), /Ctrl\+T.*새 탭/);
+  assert.match(kit.ruleLabel({ action: "keyboard", shortcut: "Ctrl+N" }), /Ctrl\+N.*새 창/);
   assert.match(kit.ruleLabel({ action: "keyboard", shortcut: "F" }), /웹페이지/);
   assert.throws(() => kit.validateSettings({ ...old, rules: [{ gesture: "RD", action: "keyboard" }] }));
 });

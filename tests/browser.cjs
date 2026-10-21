@@ -164,6 +164,22 @@ async function check(name, fn) {
     assert.match(tab.url(), /chrome:\/\/newtab/);
     await tab.close();
   });
+  await check("typed Ctrl+N creates a separate browser window", async () => {
+    await options.bringToFront();
+    await options.locator("#rules tr").last().locator("input").fill("Ctrl+N");
+    await options.locator("#save").click();
+    await options.waitForFunction(() => document.querySelector("#status").textContent.startsWith("저장했습니다"));
+    const before = await worker.evaluate(async () => (await chrome.windows.getAll()).map(window => window.id));
+    await page.bringToFront();
+    const created = context.waitForEvent("page");
+    await draw(page, [[400, 250], [550, 250], [550, 400]]);
+    await created;
+    const windows = await worker.evaluate(() => chrome.windows.getAll());
+    const added = windows.filter(window => !before.includes(window.id));
+    assert.equal(added.length, 1);
+    assert.equal(added[0].type, "normal");
+    await worker.evaluate(id => chrome.windows.remove(id), added[0].id);
+  });
   await check("captured website keys retain modifiers and focus", async () => {
     await options.bringToFront();
     const row = options.locator("#rules tr").last();

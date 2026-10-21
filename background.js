@@ -7,6 +7,7 @@ async function execute(action, tab, frameId) {
     case "back": return chrome.tabs.goBack(tab.id);
     case "forward": return chrome.tabs.goForward(tab.id);
     case "newTab": return chrome.tabs.create({ windowId: tab.windowId, index: tab.index + 1, openerTabId: tab.id });
+    case "newWindow": return chrome.windows.create({ type: "normal", focused: true, incognito: !!tab.incognito });
     case "closeTab": return chrome.tabs.remove(tab.id);
     case "reload": return chrome.tabs.reload(tab.id);
     case "duplicateTab": return chrome.tabs.duplicate(tab.id);

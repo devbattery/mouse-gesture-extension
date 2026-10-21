@@ -24,7 +24,7 @@
 
 브라우저가 먼저 가로채는 `Ctrl+T` 같은 조합은 입력란에 문자로 적으세요. 웹페이지의 키 기록 기능으로 모든 브라우저 예약 키를 가로챌 수는 없습니다.
 
-- **브라우저 동작으로 연결:** Ctrl/Cmd+T·W·R, Ctrl/Cmd+Shift+T, F5, Alt+Left·Right, Cmd+[·], Ctrl+Tab·Shift+Tab·PageUp·PageDown, Home·End, Ctrl+Home·End, Cmd+Up·Down.
+- **브라우저 동작으로 연결:** Ctrl/Cmd+T·N·W·R, Ctrl/Cmd+Shift+T, F5, Alt+Left·Right, Cmd+[·], Ctrl+Tab·Shift+Tab·PageUp·PageDown, Home·End, Ctrl+Home·End, Cmd+Up·Down. Ctrl/Cmd+N은 실제 새 브라우저 창을 열며 시작한 탭의 일반/시크릿 상태를 유지합니다.
 - **나머지 조합:** 제스처를 시작한 프레임의 현재 포커스 요소에 `keydown`과 `keyup`으로 전달합니다. 단축키 안내에 **웹페이지 단축키**로 표시됩니다. 사이트의 JavaScript 키 핸들러가 처리해야 하며, 실제 타이핑·시스템 키 입력과는 다릅니다.
 - 브라우저 API로 연결되지 않는 주소창·메뉴 단축키(`Ctrl+L`, `Ctrl+F` 등), 다른 확장의 단축키, OS 단축키는 실행할 수 없습니다. 웹사이트가 `isTrusted`를 검사하거나 실제 키 입력의 기본 동작이 필요한 경우에도 작동하지 않습니다. 이 제한을 우회하는 debugger 권한이나 별도 실행 프로그램은 사용하지 않습니다.
 
@@ -72,6 +72,6 @@
 
 Node.js 18 이상에서 `npm test`로 인식기·설정·단축키 파서·백그라운드 동작 테스트를 실행합니다. 빌드는 필요 없습니다. Playwright가 있는 개발 환경에서는 `PLAYWRIGHT_MODULE`에 모듈의 절대 경로를 지정하고 `node tests/browser.cjs`로 전용 Chromium 프로필을 사용한 통합 테스트를 실행할 수 있습니다.
 
-2026-10-21 검증: Node 테스트 24개 통과. Windows의 ego Chromium 154에서 직접 키 기록, 잘못된 조합 거부, 제스처와 단축키 동시 등록·저장·재로딩, 입력한 Ctrl+T·Ctrl+W의 실제 탭 열기·닫기, 기록한 Ctrl+Shift+K의 포커스 요소 전달, 다른 도메인 iframe의 키 전달, 기록 취소와 기존 설정 유지, 390px 설정 화면을 확인했습니다. 0.1.0에서 검증한 우클릭 궤적, 새 탭·닫기·복구, 뒤로·앞으로, 새로고침, 탭 전환, 중첩 스크롤, 다른 도메인 iframe, 일반 메뉴·Shift 우회·Esc 취소, 가짜 입력 거부, 설정 즉시 반영, 감도 변경도 유지합니다. macOS/Linux와 물리 마우스별 체감 지연은 별도로 검증하지 않았습니다.
+2026-10-21 검증: Node 테스트 26개 통과. Windows의 ego Chromium 154에서 직접 키 기록, 잘못된 조합 거부, 제스처와 단축키 동시 등록·저장·재로딩, 입력한 Ctrl+T·Ctrl+W의 실제 탭 열기·닫기, 기록한 Ctrl+Shift+K의 포커스 요소 전달, 다른 도메인 iframe의 키 전달, 기록 취소와 기존 설정 유지, 390px 설정 화면을 확인했습니다. 0.2.1에서는 기존 Ctrl+N 바인딩으로 탭이 하나 있는 별도의 일반 브라우저 창이 열리는 것과 기존 설정 보존을 추가 확인했습니다. 0.1.0에서 검증한 우클릭 궤적, 새 탭·닫기·복구, 뒤로·앞으로, 새로고침, 탭 전환, 중첩 스크롤, 다른 도메인 iframe, 일반 메뉴·Shift 우회·Esc 취소, 가짜 입력 거부, 설정 즉시 반영, 감도 변경도 유지합니다. macOS/Linux와 물리 마우스별 체감 지연은 별도로 검증하지 않았습니다.
 
 참고 프로젝트: [MacGesture](https://github.com/MacGesture/MacGesture). 방향 문자열 `L/R/U/D`과 우클릭 제스처의 사용 방식을 참고했으며, 원본 Objective-C 코드를 복사하거나 포함하지 않고 브라우저용 JavaScript로 새로 구현했습니다.

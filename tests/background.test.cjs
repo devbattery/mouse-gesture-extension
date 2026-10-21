@@ -17,7 +17,8 @@ function worker(rule, extra = {}) {
       goBack: record("back"), goForward: record("forward"), create: record("create"),
       remove: record("remove"), reload: record("reload"), update: record("update"),
       duplicate: record("duplicate"), sendMessage: record("sendMessage") },
-    sessions: { getRecentlyClosed: async () => [{ window: { sessionId: "window" } }, { tab: { sessionId: "closed-tab" } }], restore: record("restore") }
+    sessions: { getRecentlyClosed: async () => [{ window: { sessionId: "window" } }, { tab: { sessionId: "closed-tab" } }], restore: record("restore") },
+    windows: { create: record("newWindow") }
   };
   const context = vm.createContext({ chrome, structuredClone, importScripts() {} });
   for (const file of ["shared.js", "background.js"]) vm.runInContext(fs.readFileSync(path.join(__dirname, "..", file), "utf8"), context);
@@ -108,4 +109,23 @@ test("invalid saved keys and website delivery failures return errors", async () 
   const app = worker({ gesture: "RD", action: "keyboard", shortcut: "F" });
   app.chrome.tabs.sendMessage = async () => ({ ok: false, error: "No target" });
   assert.equal((await app.send()).error, "No target");
+});
+
+test("Ctrl+N, Cmd+N, and the new-window action create a browser window in the source privacy mode", async () => {
+  for (const incognito of [false, true]) {
+    for (const rule of [{ gesture: "RD", action: "keyboard", shortcut: "Ctrl+N" },
+      { gesture: "RD", action: "keyboard", shortcut: "Cmd+N" }, { gesture: "RD", action: "newWindow" }]) {
+      const app = worker(rule);
+      app.tab.incognito = incognito;
+      assert.equal((await app.send()).ok, true);
+      assert.equal(JSON.stringify(app.calls), JSON.stringify([["newWindow", { type: "normal", focused: true, incognito }]]));
+    }
+  }
+});
+
+test("new-window API errors are reported without falling back to website keys", async () => {
+  const app = worker({ gesture: "RD", action: "keyboard", shortcut: "Ctrl+N" });
+  app.chrome.windows.create = async () => { throw new Error("Window creation failed"); };
+  assert.equal((await app.send()).error, "Window creation failed");
+  assert.equal(app.calls.length, 0);
 });

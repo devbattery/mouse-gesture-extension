@@ -4,6 +4,7 @@ globalThis.GestureKit = (() => {
     back: { label: "뒤로 가기", shortcut: "Alt + ← / ⌘ + [" },
     forward: { label: "앞으로 가기", shortcut: "Alt + → / ⌘ + ]" },
     newTab: { label: "새 탭", shortcut: "Ctrl / ⌘ + T" },
+    newWindow: { label: "새 창", shortcut: "Ctrl / ⌘ + N" },
     closeTab: { label: "현재 탭 닫기", shortcut: "Ctrl / ⌘ + W" },
     reload: { label: "새로고침", shortcut: "Ctrl / ⌘ + R" },
     restoreTab: { label: "닫은 탭 다시 열기", shortcut: "Ctrl / ⌘ + Shift + T" },
@@ -96,6 +97,7 @@ globalThis.GestureKit = (() => {
     const text = typeof shortcut === "string" ? parseShortcut(shortcut).text : shortcut.text;
     return ({
       "Ctrl+T": "newTab", "Cmd+T": "newTab", "Ctrl+W": "closeTab", "Cmd+W": "closeTab",
+      "Ctrl+N": "newWindow", "Cmd+N": "newWindow",
       "Ctrl+R": "reload", "Cmd+R": "reload", F5: "reload",
       "Ctrl+Shift+T": "restoreTab", "Shift+Cmd+T": "restoreTab",
       "Alt+ArrowLeft": "back", "Cmd+[": "back", "Alt+ArrowRight": "forward", "Cmd+]": "forward",
