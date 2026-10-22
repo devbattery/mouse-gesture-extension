@@ -130,24 +130,80 @@ globalThis.GestureKit = (() => {
     return `${rule.shortcut} · ${action ? actions[action].label : "웹페이지 단축키"}`;
   }
 
-  function validateSettings(value = structuredClone(defaults)) {
-    if (!value || typeof value.enabled !== "boolean" ||
-        !Number.isInteger(value.threshold) || value.threshold < 12 || value.threshold > 48 ||
-        !Array.isArray(value.rules) || value.rules.length > 64) {
-      throw new Error("설정 형식이 올바르지 않습니다.");
-    }
+  // 제스처 규칙 배열을 검증하고 저장·내보내기에 필요한 필드만 남긴다.
+  function validateRules(value) {
+    if (!Array.isArray(value)) throw new Error("제스처 목록 형식이 올바르지 않습니다.");
+    if (value.length > 64) throw new Error("제스처는 최대 64개까지 저장할 수 있습니다.");
     const seen = new Set();
-    const rules = value.rules.map(rule => {
-      if (!rule || !validGesture(rule.gesture) ||
-          !(Object.hasOwn(actions, rule.action) || rule.action === "keyboard") || seen.has(rule.gesture)) {
-        throw new Error("중복되거나 올바르지 않은 제스처가 있습니다.");
+    return value.map((rule, index) => {
+      if (!rule || typeof rule !== "object" || Array.isArray(rule)) {
+        throw new Error(`${index + 1}번째 제스처 형식이 올바르지 않습니다.`);
+      }
+      if (!validGesture(rule.gesture)) {
+        throw new Error(`${index + 1}번째 제스처의 방향이 올바르지 않습니다.`);
+      }
+      if (!(Object.hasOwn(actions, rule.action) || rule.action === "keyboard")) {
+        throw new Error(`${index + 1}번째 제스처의 동작이 올바르지 않습니다.`);
+      }
+      if (seen.has(rule.gesture)) {
+        throw new Error(`${index + 1}번째 제스처가 중복되었습니다.`);
       }
       seen.add(rule.gesture);
       const result = { gesture: rule.gesture, action: rule.action };
       if (rule.action === "keyboard") result.shortcut = parseShortcut(rule.shortcut).text;
       return result;
     });
-    return { enabled: value.enabled, threshold: value.threshold, rules };
+  }
+
+  function validateSettings(value = structuredClone(defaults)) {
+    if (!value || typeof value.enabled !== "boolean" ||
+        !Number.isInteger(value.threshold) || value.threshold < 12 || value.threshold > 48 ||
+        !Array.isArray(value.rules) || value.rules.length > 64) {
+      throw new Error("설정 형식이 올바르지 않습니다.");
+    }
+    return { enabled: value.enabled, threshold: value.threshold, rules: validateRules(value.rules) };
+  }
+
+  // 다른 컴퓨터로 옮길 수 있는 제스처 파일 형식. 사용 여부와 감도는 기기별로
+  // 유지하고, 제스처 방향·동작·직접 지정한 단축키만 담는다.
+  function createGestureBackup(rules, extensionVersion) {
+    if (!Array.isArray(rules)) throw new Error("내보낼 제스처 목록이 없습니다.");
+    const payload = {
+      app: "glide-mouse-gestures",
+      format: "glide-gestures",
+      formatVersion: 1,
+      exportedAt: new Date().toISOString(),
+      gestures: validateRules(rules)
+    };
+    if (typeof extensionVersion === "string" && extensionVersion) payload.extensionVersion = extensionVersion;
+    return payload;
+  }
+
+  function parseGestureBackup(text) {
+    if (typeof text !== "string") throw new Error("빈 파일입니다.");
+    // Windows 편집기에서 붙은 UTF-8 BOM이 있어도 JSON을 읽는다.
+    const source = text.replace(/^\uFEFF/, "");
+    if (!source.trim()) throw new Error("빈 파일입니다.");
+    let data;
+    try {
+      data = JSON.parse(source);
+    } catch {
+      throw new Error("JSON 파일을 읽지 못했습니다.");
+    }
+    let gestures;
+    // 이전에 수동으로 만든 규칙 배열도 같은 방식으로 검증해 받아들인다.
+    if (Array.isArray(data)) {
+      gestures = data;
+    } else if (data && typeof data === "object" && Object.hasOwn(data, "format")) {
+      if (data.format !== "glide-gestures") throw new Error("Glide 제스처 파일이 아닙니다.");
+      if (data.formatVersion !== 1) throw new Error("지원하지 않는 제스처 파일 버전입니다.");
+      // 빈 값이나 누락된 목록을 기본값으로 대체하지 않는다.
+      if (!Array.isArray(data.gestures)) throw new Error("제스처 목록이 없는 파일입니다.");
+      gestures = data.gestures;
+    } else {
+      throw new Error("Glide 제스처 파일이 아닙니다.");
+    }
+    return validateRules(gestures);
   }
 
   class Gesture {
@@ -239,6 +295,6 @@ globalThis.GestureKit = (() => {
 
   const arrows = sequence => [...sequence].map(char => ({ L: "←", R: "→", U: "↑", D: "↓" })[char]).join(" ");
   const readSettings = async () => validateSettings((await chrome.storage.local.get("settings")).settings);
-  return { actions, defaults, validGesture, validateSettings, readSettings, Gesture, Trail, arrows,
+  return { actions, defaults, validGesture, validateSettings, validateRules, createGestureBackup, parseGestureBackup, readSettings, Gesture, Trail, arrows,
     parseShortcut, shortcutFromEvent, shortcutAction, ruleLabel, continuesGesture };
 })();

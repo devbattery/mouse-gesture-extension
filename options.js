@@ -14,9 +14,29 @@ function status(text, error = false) {
   $("#status").dataset.error = error;
 }
 
+// 제스처 백업 영역의 결과는 저장 바와 별도로 보여 준다.
+function backupStatus(text, error = false) {
+  const node = $("#backup-status");
+  node.textContent = text;
+  node.dataset.error = error;
+  node.hidden = !text;
+}
+
+function clearBackupStatus() {
+  backupStatus("");
+}
+
+// 파일 이름에 쓰는 현지 날짜(YYYY-MM-DD).
+function dateStamp() {
+  const date = new Date();
+  const pad = value => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
 function dirty() {
   $("#save").disabled = false;
   status("변경사항을 저장해 주세요.");
+  clearBackupStatus();
 }
 
 function bindingControls(rule, onChange, name) {
@@ -259,11 +279,66 @@ $("#reset").addEventListener("click", () => {
   dirty();
   status("기본 제스처를 불러왔습니다. 저장하면 적용됩니다.");
 });
+$("#export-gestures").addEventListener("click", () => {
+  if (!settings) return;
+  try {
+    // 화면에 보이는 목록을 기준으로 내보낸다. 잘못된 단축키가 있으면
+    // 파일을 만들기 전에 검증 오류를 보여 준다.
+    const payload = GestureKit.createGestureBackup(settings.rules, chrome.runtime.getManifest().version);
+    const name = `glide-gestures-${dateStamp()}.json`;
+    const blob = new Blob([JSON.stringify(payload, null, 2) + "\n"], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = name;
+    link.hidden = true;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    // 다운로드가 시작될 시간을 준 뒤 Blob URL을 정리한다.
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    const summary = payload.gestures.length ? `제스처 ${payload.gestures.length}개를` : "제스처 목록을";
+    backupStatus(`${summary} ${name} 파일로 내보냈습니다.`);
+  } catch (error) {
+    backupStatus(`내보내지 못했습니다. ${error.message}`, true);
+  }
+});
+$("#import-gestures").addEventListener("click", () => {
+  if (!settings) return;
+  $("#import-file").click();
+});
+$("#import-file").addEventListener("change", async event => {
+  const input = event.target;
+  const file = input.files?.[0];
+  try {
+    if (!file) return;
+    if (file.size > 1024 * 1024) {
+      throw new Error("파일이 너무 큽니다. 1MB 이하의 파일을 선택해 주세요.");
+    }
+    const rules = GestureKit.parseGestureBackup(await file.text());
+    // 저장하지 않은 화면 변경이 있으면 덮어쓰기 전에 확인한다.
+    if (!$("#save").disabled && !confirm("저장하지 않은 변경사항이 있습니다. 불러온 제스처로 현재 목록을 바꿀까요?")) {
+      return;
+    }
+    settings.rules = rules;
+    render();
+    dirty();
+    const summary = rules.length ? `제스처 ${rules.length}개를 불러왔습니다.` : "제스처가 없는 파일을 불러왔습니다.";
+    backupStatus(`${summary} 변경사항 저장을 눌러 적용하세요.`);
+  } catch (error) {
+    backupStatus(`불러오지 못했습니다. ${error.message}`, true);
+  } finally {
+    // 같은 파일을 다시 선택해도 change 이벤트가 발생하도록 초기화한다.
+    input.value = "";
+  }
+});
 $("#save").addEventListener("click", async () => {
   try {
     const value = GestureKit.validateSettings(settings);
     $("#save").disabled = true;
     await chrome.storage.local.set({ settings: value });
+    // 불러오기 안내가 남아 있으면 저장 완료 후 정리한다.
+    clearBackupStatus();
     status("저장했습니다. 열린 웹페이지에도 바로 적용됩니다.");
   } catch (error) {
     $("#save").disabled = false;
