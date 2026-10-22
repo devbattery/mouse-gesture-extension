@@ -124,8 +124,15 @@ globalThis.GestureKit = (() => {
     })[text];
   }
 
+  // 동작 목록과 제스처 안내에서 같은 형식으로 보여 주기 위한 라벨.
+  // 브라우저 기본 단축키가 없는 동작도 빈칸 대신 이유를 표시한다.
+  function actionLabel(id) {
+    const action = actions[id];
+    return action.shortcut ? `${action.shortcut} · ${action.label}` : `${action.label} · 기본 단축키 없음`;
+  }
+
   function ruleLabel(rule) {
-    if (rule.action !== "keyboard") return actions[rule.action].label;
+    if (rule.action !== "keyboard") return actionLabel(rule.action);
     const action = shortcutAction(rule.shortcut);
     return `${rule.shortcut} · ${action ? actions[action].label : "웹페이지 단축키"}`;
   }
@@ -296,5 +303,5 @@ globalThis.GestureKit = (() => {
   const arrows = sequence => [...sequence].map(char => ({ L: "←", R: "→", U: "↑", D: "↓" })[char]).join(" ");
   const readSettings = async () => validateSettings((await chrome.storage.local.get("settings")).settings);
   return { actions, defaults, validGesture, validateSettings, validateRules, createGestureBackup, parseGestureBackup, readSettings, Gesture, Trail, arrows,
-    parseShortcut, shortcutFromEvent, shortcutAction, ruleLabel, continuesGesture };
+    parseShortcut, shortcutFromEvent, shortcutAction, actionLabel, ruleLabel, continuesGesture };
 })();

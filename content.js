@@ -174,11 +174,12 @@
     suppressUntil = performance.now() + 500;
     event.preventDefault();
     const rule = !finished.invalid && settings.rules.find(item => item.gesture === finished.sequence);
+    // 등록되지 않은 제스처는 실행 결과가 없으므로 안내를 남기지 않고 즉시 닫는다.
+    if (!rule) { hide(); return; }
     showOverlay();
     trail.clear();
     showGestureLabel(finished);
     hideTimer = setTimeout(hide, 750);
-    if (!rule) return;
     // 확장이 리로드·업데이트된 직후에는 이 탭의 컨텍스트가 무효화되어
     // sendMessage가 동기 예외를 던진다. 그대로 두면 페이지 콘솔에 Uncaught 오류가 남으므로
     // 새로고침 안내로 바꾼다.

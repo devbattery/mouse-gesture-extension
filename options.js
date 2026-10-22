@@ -1,4 +1,4 @@
-const { actions, arrows, Gesture, Trail } = GestureKit;
+const { actions, arrows, Gesture, Trail, actionLabel } = GestureKit;
 const $ = selector => document.querySelector(selector);
 let settings;
 let editingIndex;
@@ -54,7 +54,7 @@ function bindingControls(rule, onChange, name) {
   for (const [id, action] of Object.entries(actions)) {
     const option = document.createElement("option");
     option.value = id;
-    option.textContent = action.label + (action.shortcut ? ` · ${action.shortcut}` : "");
+    option.textContent = actionLabel(id);
     select.append(option);
   }
   const custom = document.createElement("option");

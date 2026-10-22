@@ -56,6 +56,13 @@ async function check(name, fn) {
     assert.equal(await options.locator("#rules tr").count(), 10);
     assert.equal(await options.locator("#save").isDisabled(), true);
   });
+  await check("built-in action options show shortcuts consistently", async () => {
+    const text = await options.locator("#rules tr").first().locator("select").textContent();
+    assert.match(text, /Ctrl \/ ⌘ \+ R · 새로고침/);
+    assert.match(text, /End · 맨 아래로/);
+    assert.match(text, /탭 복제 · 기본 단축키 없음/);
+    assert.match(text, /탭 음소거 켜기 \/ 끄기 · 기본 단축키 없음/);
+  });
   await check("real right-drag creates a tab, then closes it", async () => {
     const created = context.waitForEvent("page");
     await draw(page, [[400, 250], [400, 400]]);
@@ -99,8 +106,12 @@ async function check(name, fn) {
     const count = context.pages().length;
     await draw(page, [[400, 250], [400, 400]], { cancel: true });
     await draw(page, [[400, 250], [550, 250], [550, 400], [400, 400]]);
-    await page.waitForTimeout(150);
+    await page.waitForTimeout(100);
     assert.equal(context.pages().length, count);
+    // 등록되지 않은 제스처는 결과가 없으므로 오버레이를 남기지 않는다.
+    assert.equal(await page.evaluate(() =>
+      [...document.querySelectorAll("div")].some(node => node.style.zIndex === "2147483647")
+    ), false);
   });
   await check("website synthetic pointer events cannot invoke gestures", async () => {
     const count = context.pages().length;

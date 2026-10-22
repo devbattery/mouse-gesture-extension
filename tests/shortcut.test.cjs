@@ -81,3 +81,16 @@ test("preserves old settings and validates and retains custom keyboard bindings"
   assert.match(kit.ruleLabel({ action: "keyboard", shortcut: "F" }), /웹페이지/);
   assert.throws(() => kit.validateSettings({ ...old, rules: [{ gesture: "RD", action: "keyboard" }] }));
 });
+
+test("built-in action labels include native shortcuts or an explicit no-shortcut note", () => {
+  assert.match(kit.ruleLabel({ action: "reload" }), /Ctrl \/ ⌘ \+ R.*새로고침/);
+  assert.match(kit.ruleLabel({ action: "scrollBottom" }), /End.*맨 아래로/);
+  assert.match(kit.ruleLabel({ action: "duplicateTab" }), /탭 복제.*기본 단축키 없음/);
+  assert.match(kit.ruleLabel({ action: "muteTab" }), /탭 음소거.*기본 단축키 없음/);
+  // 화면에 표시되는 모든 내장 동작이 라벨과 단축키(또는 없음 안내)를 함께 가진다.
+  for (const [id, action] of Object.entries(kit.actions)) {
+    const label = kit.ruleLabel({ action: id });
+    assert.ok(label.includes(action.label), `${id}: 동작 이름 누락`);
+    assert.ok(action.shortcut ? label.includes(action.shortcut) : label.includes("기본 단축키 없음"), `${id}: 단축키 안내 누락`);
+  }
+});

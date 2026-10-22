@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Glide · 마우스 제스처",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "description": "우클릭하고 그리세요. 부드러운 마우스 제스처로 뒤로 가기, 탭, 새로고침을 실행합니다.",
   "minimum_chrome_version": "111",
   "permissions": ["storage", "sessions"],
