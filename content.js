@@ -8,6 +8,7 @@
   let overlay;
   let trail;
   let label;
+  let labelState = "";
   let hideTimer;
   let suppressUntil = 0;
 
@@ -32,22 +33,46 @@
       label.setAttribute("role", "status");
       shadow.append(style, canvas, label);
       trail = new Trail(canvas);
+      labelState = "";
     }
     clearTimeout(hideTimer);
-    (document.fullscreenElement || document.documentElement).append(overlay);
+    const host = document.fullscreenElement || document.documentElement;
+    // 이미 붙어 있으면 다시 append하지 않는다(불필요한 DOM 이동·리플로우 방지).
+    if (overlay.parentNode !== host) host.append(overlay);
   }
 
-  function showLabel(sequence, text) {
+  // 라벨은 "상태 키"가 바뀔 때만 다시 그린다.
+  // 예전에는 포인터가 움직일 때마다 replaceChildren()으로 노드를 새로 만들어
+  // 제스처 중 매 프레임 DOM·스타일 재계산이 발생했고, role="status" 낭독도 반복됐다.
+  function renderLabel(state, sequence, text) {
+    if (state === labelState) return;
+    labelState = state;
     label.replaceChildren();
     const pattern = document.createElement("span");
     pattern.textContent = arrows(sequence);
     label.append(pattern, document.createTextNode(text));
   }
 
+  // 현재 제스처 방향(시퀀스)에 대한 안내 문구는 방향이 바뀔 때만 계산한다.
+  function showGestureLabel(current) {
+    const state = `g:${current.sequence}:${current.invalid}`;
+    if (state === labelState) return;
+    const rule = !current.invalid && settings.rules.find(item => item.gesture === current.sequence);
+    renderLabel(state, current.sequence, current.invalid ? "너무 긴 제스처 · Esc로 취소"
+      : rule ? ruleLabel(rule) : "등록되지 않은 제스처");
+  }
+
+  // 실행 실패·확장 업데이트 안내처럼 제스처 상태와 무관한 문구.
+  function showNotice(sequence, text) {
+    renderLabel(`n:${sequence}:${text}`, sequence, text);
+  }
+
   function hide() {
     clearTimeout(hideTimer);
-    trail?.clear();
+    trail?.release();
     overlay?.remove();
+    // 다음 제스처는 라벨을 새로 계산하게 한다(설정 변경·안내 문구 뒤의 잔상 방지).
+    labelState = "";
   }
 
   function releaseCapture() {
@@ -60,8 +85,46 @@
   function cancel() {
     if (gesture?.moved) suppressUntil = performance.now() + 500;
     gesture = undefined;
+    stopTracking();
     releaseCapture();
     hide();
+  }
+
+  // pointermove·pointerup·keydown·blur 같은 리스너는 제스처가 진행 중일 때만 등록한다.
+  // 유휴 상태에서 페이지의 마우스 이동·키 입력마다 핸들러가 호출되던 비용을 없애고,
+  // preventDefault가 필요 없는 동안 non-passive pointermove도 페이지 입력 경로에 남기지 않는다.
+  // 등록 시점은 제스처를 만드는 pointerdown과 같은 태스크라 첫 이동을 놓치지 않는다.
+  const moveOptions = { capture: true, passive: false };
+  let tracking = false;
+
+  function startTracking() {
+    if (tracking) return;
+    tracking = true;
+    window.addEventListener("pointermove", move, moveOptions);
+    window.addEventListener("pointerup", onPointerUp, true);
+    window.addEventListener("keydown", onKeyDown, true);
+    window.addEventListener("pointercancel", cancel, true);
+    window.addEventListener("lostpointercapture", onLostCapture, true);
+    window.addEventListener("blur", cancel);
+    window.addEventListener("resize", cancel);
+    document.addEventListener("pointerleave", onPointerLeave, true);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    document.addEventListener("fullscreenchange", cancel);
+  }
+
+  function stopTracking() {
+    if (!tracking) return;
+    tracking = false;
+    window.removeEventListener("pointermove", move, moveOptions);
+    window.removeEventListener("pointerup", onPointerUp, true);
+    window.removeEventListener("keydown", onKeyDown, true);
+    window.removeEventListener("pointercancel", cancel, true);
+    window.removeEventListener("lostpointercapture", onLostCapture, true);
+    window.removeEventListener("blur", cancel);
+    window.removeEventListener("resize", cancel);
+    document.removeEventListener("pointerleave", onPointerLeave, true);
+    document.removeEventListener("visibilitychange", onVisibilityChange);
+    document.removeEventListener("fullscreenchange", cancel);
   }
 
   window.addEventListener("pointerdown", event => {
@@ -74,13 +137,15 @@
     pointerId = event.pointerId;
     origin = { x: event.clientX, y: event.clientY };
     scrollTarget = event.composedPath()[0];
+    startTracking();
   }, true);
 
   function move(event) {
     if (!event.isTrusted || !gesture || event.pointerId !== pointerId) return;
     if (!(event.buttons & 2)) { cancel(); return; }
     const wasMoved = gesture.moved;
-    for (const sample of event.getCoalescedEvents?.() || []) gesture.move(sample.clientX, sample.clientY);
+    const samples = event.getCoalescedEvents?.();
+    if (samples) for (const sample of samples) gesture.move(sample.clientX, sample.clientY);
     gesture.move(event.clientX, event.clientY);
     if (!gesture.moved) return;
     if (!wasMoved) {
@@ -89,18 +154,17 @@
       document.documentElement.setPointerCapture(pointerId);
     }
     trail.add(event.clientX, event.clientY);
-    const rule = !gesture.invalid && settings.rules.find(item => item.gesture === gesture.sequence);
-    showLabel(gesture.sequence, gesture.invalid ? "너무 긴 제스처 · Esc로 취소" : rule ? ruleLabel(rule) : "등록되지 않은 제스처");
+    showGestureLabel(gesture);
     if (event.cancelable) event.preventDefault();
   }
-  window.addEventListener("pointermove", move, { capture: true, passive: false });
 
-  window.addEventListener("pointerup", event => {
+  function onPointerUp(event) {
     if (!event.isTrusted || !gesture || event.pointerId !== pointerId || event.button !== 2) return;
     // Include the release point even when the browser coalesced the final movement.
     gesture.move(event.clientX, event.clientY);
     const finished = gesture;
     gesture = undefined;
+    stopTracking();
     releaseCapture();
     if (!finished.moved) { hide(); return; }
     suppressUntil = performance.now() + 500;
@@ -108,20 +172,37 @@
     const rule = !finished.invalid && settings.rules.find(item => item.gesture === finished.sequence);
     showOverlay();
     trail.clear();
-    showLabel(finished.sequence, rule ? ruleLabel(rule) : "등록되지 않은 제스처");
+    showGestureLabel(finished);
     hideTimer = setTimeout(hide, 750);
     if (!rule) return;
     chrome.runtime.sendMessage({ type: "glide:gesture", gesture: finished.sequence }).then(response => {
       if (response?.ok || gesture || !overlay?.isConnected) return;
-      showLabel(finished.sequence, response?.error || "실행할 수 없습니다.");
+      showNotice(finished.sequence, response?.error || "실행할 수 없습니다.");
       clearTimeout(hideTimer);
       hideTimer = setTimeout(hide, 2000);
     }).catch(() => {
       if (gesture || !overlay?.isConnected) return;
-      showLabel("", "확장이 업데이트되었습니다. 페이지를 새로고침해 주세요.");
+      showNotice("", "확장이 업데이트되었습니다. 페이지를 새로고침해 주세요.");
     });
-  }, true);
+  }
 
+  function onKeyDown(event) {
+    if (event.key === "Escape" && gesture) cancel();
+  }
+
+  function onLostCapture() {
+    if (gesture) cancel();
+  }
+
+  function onPointerLeave(event) {
+    if (gesture && !gesture.moved && !event.relatedTarget) cancel();
+  }
+
+  function onVisibilityChange() {
+    if (document.hidden) cancel();
+  }
+
+  // contextmenu는 제스처 종료 후 500ms 동안 메뉴를 억제해야 하므로 상시 등록한다.
   window.addEventListener("contextmenu", event => {
     if (!event.isTrusted || event.button !== 2) return;
     // Some platforms emit contextmenu on press; Shift + right-click always bypasses gestures.
@@ -130,16 +211,6 @@
       event.stopImmediatePropagation();
     }
   }, true);
-  window.addEventListener("keydown", event => {
-    if (event.key === "Escape" && gesture) cancel();
-  }, true);
-  window.addEventListener("pointercancel", cancel, true);
-  window.addEventListener("lostpointercapture", () => { if (gesture) cancel(); }, true);
-  window.addEventListener("blur", cancel);
-  window.addEventListener("resize", cancel);
-  document.addEventListener("visibilitychange", () => { if (document.hidden) cancel(); });
-  document.addEventListener("fullscreenchange", cancel);
-  document.addEventListener("pointerleave", event => { if (gesture && !gesture.moved && !event.relatedTarget) cancel(); });
 
   chrome.runtime.onMessage.addListener((message, sender, respond) => {
     if (sender.id !== chrome.runtime.id) return;

@@ -63,3 +63,19 @@ test("rejects malformed settings, duplicates, and unknown actions", () => {
   }
   for (const value of [null, [], "", "L?", "L".repeat(100), "LL", 12]) assert.equal(kit.validGesture(value), false);
 });
+
+test("trail frees the canvas backing store when a gesture ends", () => {
+  const context = { clearRect() {}, scale() {}, beginPath() {}, moveTo() {}, quadraticCurveTo() {}, lineTo() {}, stroke() {} };
+  const canvas = { width: 0, height: 0, getBoundingClientRect: () => ({ width: 800, height: 600 }), getContext: () => context };
+  // content script와 같은 DPR 상한(2배)에서 CSS 크기 × 2로 백킹 스토어를 잡는지 확인한다.
+  const trailKit = vm.runInNewContext(source + "; GestureKit", { structuredClone, devicePixelRatio: 2,
+    requestAnimationFrame: callback => { callback(); return 1; }, cancelAnimationFrame() {} });
+  const trail = new trailKit.Trail(canvas);
+  trail.start(0, 0);
+  trail.add(10, 10);
+  assert.equal(canvas.width, 1600);
+  assert.equal(canvas.height, 1200);
+  trail.release();
+  assert.equal(canvas.width, 0);
+  assert.equal(canvas.height, 0);
+});

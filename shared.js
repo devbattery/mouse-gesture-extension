@@ -208,6 +208,17 @@ globalThis.GestureKit = (() => {
       this.queue.length = 0;
       this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
     }
+
+    // 제스처가 끝나면 백킹 스토어까지 반환한다.
+    // 캔버스는 CSS 크기(width/height 100%)로 다시 늘어나므로 화면 배치는 그대로이고,
+    // 넓은 화면(예: 4K·HiDPI)에서 제스처 한 번에 잡히던 수십 MB가 페이지 수명 동안 남지 않는다.
+    release() {
+      this.clear();
+      if (this.canvas.width || this.canvas.height) {
+        this.canvas.width = 0;
+        this.canvas.height = 0;
+      }
+    }
   }
 
   const arrows = sequence => [...sequence].map(char => ({ L: "←", R: "→", U: "↑", D: "↓" })[char]).join(" ");

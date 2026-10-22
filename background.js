@@ -39,10 +39,13 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
     return;
   }
   (async () => {
-    const settings = await GestureKit.readSettings();
+    // 설정 읽기와 탭 조회는 서로 독립적이므로 동시에 시작해 왕복 대기 시간을 겹친다.
+    const [settings, tab] = await Promise.all([
+      GestureKit.readSettings(),
+      chrome.tabs.get(sender.tab.id)
+    ]);
     const rule = settings.rules.find(item => item.gesture === message.gesture);
     if (!settings.enabled || !rule) throw new Error("사용하지 않는 제스처입니다.");
-    const tab = await chrome.tabs.get(sender.tab.id);
     if (!tab.active) throw new Error("현재 보고 있는 탭에서만 실행할 수 있습니다.");
     if (rule.action === "keyboard") {
       const action = GestureKit.shortcutAction(rule.shortcut);
