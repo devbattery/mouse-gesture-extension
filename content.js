@@ -58,8 +58,12 @@
     const state = `g:${current.sequence}:${current.invalid}`;
     if (state === labelState) return;
     const rule = !current.invalid && settings.rules.find(item => item.gesture === current.sequence);
+    // 아직 완성되지 않았지만 더 긴 규칙으로 이어질 수 있는 시퀀스는 진행 중으로 안내한다.
+    const continuing = !current.invalid && !rule &&
+      GestureKit.continuesGesture(current.sequence, settings.rules);
     renderLabel(state, current.sequence, current.invalid ? "너무 긴 제스처 · Esc로 취소"
-      : rule ? ruleLabel(rule) : "등록되지 않은 제스처");
+      : rule ? ruleLabel(rule)
+      : continuing ? "계속 그리세요" : "등록되지 않은 제스처");
   }
 
   // 실행 실패·확장 업데이트 안내처럼 제스처 상태와 무관한 문구.

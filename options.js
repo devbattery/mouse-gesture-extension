@@ -6,6 +6,7 @@ let recorded = "";
 let recording;
 let recordingPointer;
 let draftRule;
+let bindingCount = 0;
 const recordTrail = new Trail($("#record-canvas"));
 
 function status(text, error = false) {
@@ -23,16 +24,23 @@ function bindingControls(rule, onChange, name) {
   container.className = "binding";
   const select = document.createElement("select");
   select.setAttribute("aria-label", `${name} 실행 방식`);
-  const custom = document.createElement("option");
-  custom.value = "keyboard";
-  custom.textContent = "직접 단축키 입력";
-  select.append(custom);
+  // 새 제스처는 먼저 동작을 고르도록 비워 둔다. 내장 동작을 앞에 두어
+  // 단축키를 직접 입력하지 않아도 된다는 사실이 드러나게 한다.
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = "동작을 선택하세요";
+  placeholder.disabled = true;
+  select.append(placeholder);
   for (const [id, action] of Object.entries(actions)) {
     const option = document.createElement("option");
     option.value = id;
     option.textContent = action.label + (action.shortcut ? ` · ${action.shortcut}` : "");
     select.append(option);
   }
+  const custom = document.createElement("option");
+  custom.value = "keyboard";
+  custom.textContent = "직접 단축키 입력";
+  select.append(custom);
   select.value = rule.action;
   const controls = document.createElement("div");
   controls.className = "shortcut-controls";
@@ -52,11 +60,27 @@ function bindingControls(rule, onChange, name) {
   const hint = document.createElement("p");
   hint.className = "binding-hint";
   hint.setAttribute("role", "status");
+  // 화면 낭독기가 동작 선택 안내를 함께 읽도록 힌트와 연결한다.
+  hint.id = `binding-hint-${++bindingCount}`;
+  select.setAttribute("aria-describedby", hint.id);
   let listening = false;
 
   function preview() {
-    controls.hidden = hint.hidden = rule.action !== "keyboard";
-    if (rule.action !== "keyboard") return;
+    const keyboard = rule.action === "keyboard";
+    controls.hidden = !keyboard;
+    hint.hidden = false;
+    // 아직 동작을 고르지 않은 새 제스처는 오류가 아니라 안내를 보여 준다.
+    if (!rule.action) {
+      hint.textContent = "실행할 동작을 선택하거나 단축키를 직접 입력하세요.";
+      hint.dataset.error = "false";
+      return;
+    }
+    if (!keyboard) { hint.hidden = true; return; }
+    if (!input.value.trim()) {
+      hint.textContent = "단축키를 입력하거나 ‘키로 입력’을 누르세요.";
+      hint.dataset.error = "false";
+      return;
+    }
     try {
       const shortcut = GestureKit.parseShortcut(rule.shortcut);
       const action = GestureKit.shortcutAction(shortcut);
@@ -160,7 +184,7 @@ function clearRecord() {
 
 function openRecorder(index) {
   editingIndex = index;
-  draftRule = index === undefined ? { action: "keyboard", shortcut: "" } : structuredClone(settings.rules[index]);
+  draftRule = index === undefined ? { action: "" } : structuredClone(settings.rules[index]);
   clearRecord();
   $("#record-binding").replaceChildren(bindingControls(draftRule, validateRecord, "등록할 제스처"));
   $("#recorder").showModal();
@@ -169,11 +193,14 @@ function openRecorder(index) {
 function validateRecord() {
   const duplicate = settings.rules.some((rule, index) => rule.gesture === recorded && index !== editingIndex);
   let error = duplicate ? "이미 등록된 제스처입니다. 다른 방향으로 그려 주세요." : "";
-  if (draftRule.action === "keyboard") {
+  const missingAction = !draftRule.action;
+  const missingShortcut = draftRule.action === "keyboard" && !draftRule.shortcut.trim();
+  if (missingAction) error ||= "실행할 동작을 선택해 주세요.";
+  else if (draftRule.action === "keyboard" && !missingShortcut) {
     try { GestureKit.parseShortcut(draftRule.shortcut); } catch (caught) { error ||= caught.message; }
   }
   $("#record-error").textContent = error;
-  $("#use-record").disabled = !recorded || !!error;
+  $("#use-record").disabled = !recorded || missingAction || missingShortcut || !!error;
 }
 
 $("#draw-area").addEventListener("contextmenu", event => event.preventDefault());

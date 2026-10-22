@@ -47,6 +47,16 @@ test("maps supported browser combinations without claiming unknown keys are nati
   for (const input of ["F", "Ctrl+K", "Ctrl+L", "Alt+T", "Ctrl+F5"]) assert.equal(kit.shortcutAction(input), undefined);
 });
 
+test("detects sequences that can continue into a longer gesture", () => {
+  const rules = [{ gesture: "DLU" }, { gesture: "RD" }];
+  assert.equal(kit.continuesGesture("D", rules), true);
+  assert.equal(kit.continuesGesture("DL", rules), true);
+  assert.equal(kit.continuesGesture("DLU", rules), false);
+  assert.equal(kit.continuesGesture("R", rules), true);
+  assert.equal(kit.continuesGesture("L", rules), false);
+  assert.equal(kit.continuesGesture("D", []), false);
+});
+
 test("captures physical letter keys and ignores standalone modifiers", () => {
   assert.equal(kit.shortcutFromEvent({ key: "Control", code: "ControlLeft", ctrlKey: true }), null);
   assert.equal(kit.shortcutFromEvent({ key: "k", code: "KeyK", ctrlKey: true, shiftKey: true }), "Ctrl+Shift+K");

@@ -33,6 +33,11 @@ globalThis.GestureKit = (() => {
   const validGesture = value => typeof value === "string" &&
     /^[LRUD]{1,12}$/.test(value) && !/([LRUD])\1/.test(value);
 
+  // 현재 그린 시퀀스로 시작하는 더 긴 제스처가 있는지 확인한다.
+  // 다방향 제스처를 그리는 중간에 "등록되지 않은 제스처"로 오해하지 않게 한다.
+  const continuesGesture = (sequence, rules) => rules.some(rule =>
+    rule.gesture.length > sequence.length && rule.gesture.startsWith(sequence));
+
   const keyNames = {
     space: [" ", "Space", 32], enter: ["Enter", "Enter", 13], tab: ["Tab", "Tab", 9],
     escape: ["Escape", "Escape", 27], backspace: ["Backspace", "Backspace", 8],
@@ -235,5 +240,5 @@ globalThis.GestureKit = (() => {
   const arrows = sequence => [...sequence].map(char => ({ L: "←", R: "→", U: "↑", D: "↓" })[char]).join(" ");
   const readSettings = async () => validateSettings((await chrome.storage.local.get("settings")).settings);
   return { actions, defaults, validGesture, validateSettings, readSettings, Gesture, Trail, arrows,
-    parseShortcut, shortcutFromEvent, shortcutAction, ruleLabel };
+    parseShortcut, shortcutFromEvent, shortcutAction, ruleLabel, continuesGesture };
 })();
