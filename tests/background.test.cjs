@@ -16,9 +16,10 @@ function worker(rule, extra = {}) {
     tabs: { get: async () => tab, query: async () => [{ id: 9, index: 2 }, tab, { id: 1, index: 0 }],
       goBack: record("back"), goForward: record("forward"), create: record("create"),
       remove: record("remove"), reload: record("reload"), update: record("update"),
-      duplicate: record("duplicate"), sendMessage: record("sendMessage") },
+      duplicate: record("duplicate"), sendMessage: record("sendMessage"),
+      getZoom: async () => 1, setZoom: record("setZoom") },
     sessions: { getRecentlyClosed: async () => [{ window: { sessionId: "window" } }, { tab: { sessionId: "closed-tab" } }], restore: record("restore") },
-    windows: { create: record("newWindow") }
+    windows: { create: record("newWindow"), get: async () => ({ id: 2, state: "normal" }), update: record("updateWindow") }
   };
   const context = vm.createContext({ chrome, structuredClone, importScripts() {} });
   for (const file of ["shared.js", "background.js"]) vm.runInContext(fs.readFileSync(path.join(__dirname, "..", file), "utf8"), context);
@@ -26,6 +27,40 @@ function worker(rule, extra = {}) {
     new Promise(resolve => listener(message, sender, resolve));
   return { send, calls, chrome, tab };
 }
+
+test("hard reload, zoom, and fullscreen map to browser APIs", async () => {
+  const hard = worker({ gesture: "RD", action: "keyboard", shortcut: "Ctrl+Shift+R" });
+  assert.equal((await hard.send()).ok, true);
+  assert.equal(JSON.stringify(hard.calls[0]), JSON.stringify(["reload", 5, { bypassCache: true }]));
+
+  for (const [shortcut, expected] of [["Ctrl++", 1.1], ["Ctrl+-", 0.9], ["Ctrl+0", 0]]) {
+    const app = worker({ gesture: "RD", action: "keyboard", shortcut });
+    assert.equal((await app.send()).ok, true);
+    assert.equal(JSON.stringify(app.calls[0]), JSON.stringify(["setZoom", 5, expected]));
+  }
+
+  for (const shortcut of ["Shift+F5", "Cmd+Shift+R"]) {
+    const app = worker({ gesture: "RD", action: "keyboard", shortcut });
+    assert.equal((await app.send()).ok, true);
+    assert.equal(JSON.stringify(app.calls[0]), JSON.stringify(["reload", 5, { bypassCache: true }]));
+  }
+
+  const fullscreen = worker({ gesture: "RD", action: "keyboard", shortcut: "F11" });
+  assert.equal((await fullscreen.send()).ok, true);
+  assert.equal(JSON.stringify(fullscreen.calls[0]), JSON.stringify(["updateWindow", 2, { state: "fullscreen" }]));
+
+  // 방향 제스처에 동작을 직접 연결한 경우에도 같은 API를 쓴다.
+  const direct = worker({ gesture: "RD", action: "hardReload" });
+  assert.equal((await direct.send()).ok, true);
+  assert.equal(JSON.stringify(direct.calls[0]), JSON.stringify(["reload", 5, { bypassCache: true }]));
+});
+
+test("fullscreen toggles back to a normal window when already fullscreen", async () => {
+  const app = worker({ gesture: "RD", action: "fullscreen" });
+  app.chrome.windows.get = async () => ({ id: 2, state: "fullscreen" });
+  assert.equal((await app.send()).ok, true);
+  assert.equal(JSON.stringify(app.calls[0]), JSON.stringify(["updateWindow", 2, { state: "normal" }]));
+});
 
 test("new tabs open in the originating window beside the source tab", async () => {
   const app = worker({ gesture: "D", action: "newTab" });

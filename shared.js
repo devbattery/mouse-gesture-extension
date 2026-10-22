@@ -7,11 +7,16 @@ globalThis.GestureKit = (() => {
     newWindow: { label: "새 창", shortcut: "Ctrl / ⌘ + N" },
     closeTab: { label: "현재 탭 닫기", shortcut: "Ctrl / ⌘ + W" },
     reload: { label: "새로고침", shortcut: "Ctrl / ⌘ + R" },
+    hardReload: { label: "강력 새로고침", shortcut: "Shift + F5 / Ctrl / ⌘ + Shift + R" },
     restoreTab: { label: "닫은 탭 다시 열기", shortcut: "Ctrl / ⌘ + Shift + T" },
     previousTab: { label: "이전 탭", shortcut: "Ctrl + Shift + Tab" },
     nextTab: { label: "다음 탭", shortcut: "Ctrl + Tab" },
     scrollTop: { label: "맨 위로", shortcut: "Home" },
     scrollBottom: { label: "맨 아래로", shortcut: "End" },
+    zoomIn: { label: "확대", shortcut: "Ctrl / ⌘ + +" },
+    zoomOut: { label: "축소", shortcut: "Ctrl / ⌘ + -" },
+    zoomReset: { label: "원래 크기로", shortcut: "Ctrl / ⌘ + 0" },
+    fullscreen: { label: "전체 화면 전환", shortcut: "F11" },
     duplicateTab: { label: "탭 복제", shortcut: "" },
     muteTab: { label: "탭 음소거 켜기 / 끄기", shortcut: "" }
   };
@@ -95,10 +100,16 @@ globalThis.GestureKit = (() => {
 
   function shortcutAction(shortcut) {
     const text = typeof shortcut === "string" ? parseShortcut(shortcut).text : shortcut.text;
+    // 브라우저 API로 실행할 수 있는 조합만 등록한다. 실제 키 입력이 아니므로
+    // 표에 없는 조합은 웹페이지 키 이벤트로 전달되며 브라우저 UI를 열 수 없다.
     return ({
       "Ctrl+T": "newTab", "Cmd+T": "newTab", "Ctrl+W": "closeTab", "Cmd+W": "closeTab",
       "Ctrl+N": "newWindow", "Cmd+N": "newWindow",
       "Ctrl+R": "reload", "Cmd+R": "reload", F5: "reload",
+      "Ctrl+Shift+R": "hardReload", "Shift+Cmd+R": "hardReload", "Shift+F5": "hardReload",
+      "Ctrl+=": "zoomIn", "Ctrl+Shift+=": "zoomIn", "Cmd+=": "zoomIn", "Shift+Cmd+=": "zoomIn",
+      "Ctrl+-": "zoomOut", "Cmd+-": "zoomOut",
+      "Ctrl+0": "zoomReset", "Cmd+0": "zoomReset", F11: "fullscreen",
       "Ctrl+Shift+T": "restoreTab", "Shift+Cmd+T": "restoreTab",
       "Alt+ArrowLeft": "back", "Cmd+[": "back", "Alt+ArrowRight": "forward", "Cmd+]": "forward",
       "Ctrl+Tab": "nextTab", "Ctrl+PageDown": "nextTab",

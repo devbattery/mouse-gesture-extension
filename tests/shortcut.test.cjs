@@ -38,10 +38,13 @@ test("maps supported browser combinations without claiming unknown keys are nati
     ["Ctrl+N", "newWindow"], ["Cmd+N", "newWindow"],
     ["F5", "reload"], ["Ctrl+Shift+T", "restoreTab"], ["Cmd+Shift+T", "restoreTab"],
     ["Alt+Left", "back"], ["Cmd+]", "forward"], ["Ctrl+Tab", "nextTab"],
-    ["Ctrl+Shift+Tab", "previousTab"], ["Ctrl+Home", "scrollTop"], ["Ctrl+End", "scrollBottom"]]) {
+    ["Ctrl+Shift+Tab", "previousTab"], ["Ctrl+Home", "scrollTop"], ["Ctrl+End", "scrollBottom"],
+    ["Ctrl+Shift+R", "hardReload"], ["Shift+F5", "hardReload"], ["Cmd+Shift+R", "hardReload"],
+    ["Ctrl++", "zoomIn"], ["Ctrl+=", "zoomIn"], ["Ctrl+-", "zoomOut"], ["Ctrl+0", "zoomReset"],
+    ["F11", "fullscreen"]]) {
     assert.equal(kit.shortcutAction(input), expected);
   }
-  for (const input of ["F", "Ctrl+K", "Ctrl+L", "Ctrl+Shift+R", "Alt+T"]) assert.equal(kit.shortcutAction(input), undefined);
+  for (const input of ["F", "Ctrl+K", "Ctrl+L", "Alt+T", "Ctrl+F5"]) assert.equal(kit.shortcutAction(input), undefined);
 });
 
 test("captures physical letter keys and ignores standalone modifiers", () => {
@@ -63,6 +66,8 @@ test("preserves old settings and validates and retains custom keyboard bindings"
   assert.equal(value.rules.at(-1).shortcut, "Ctrl+T");
   assert.match(kit.ruleLabel(value.rules.at(-1)), /Ctrl\+T.*새 탭/);
   assert.match(kit.ruleLabel({ action: "keyboard", shortcut: "Ctrl+N" }), /Ctrl\+N.*새 창/);
+  assert.match(kit.ruleLabel({ action: "keyboard", shortcut: "Ctrl+Shift+R" }), /Ctrl\+Shift\+R.*강력 새로고침/);
+  assert.match(kit.ruleLabel({ action: "keyboard", shortcut: "F11" }), /F11.*전체 화면/);
   assert.match(kit.ruleLabel({ action: "keyboard", shortcut: "F" }), /웹페이지/);
   assert.throws(() => kit.validateSettings({ ...old, rules: [{ gesture: "RD", action: "keyboard" }] }));
 });

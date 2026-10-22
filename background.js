@@ -2,6 +2,24 @@ importScripts("shared.js");
 
 chrome.action.onClicked.addListener(() => chrome.runtime.openOptionsPage());
 
+// Chrome UI와 같은 확대/축소 단계(25%~500%). 한 단계씩 이동해 체감 배율을 맞춘다.
+const zoomLevels = [0.25, 0.33, 0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5];
+
+async function zoom(tabId, step) {
+  const current = await chrome.tabs.getZoom(tabId);
+  // 현재 배율과 같거나 큰 단계를 기준점으로 삼아 비표준 배율에서도 자연스럽게 이동한다.
+  const index = zoomLevels.findIndex(level => level >= current - 0.001);
+  const from = index === -1 ? zoomLevels.length - 1 : index;
+  const target = zoomLevels[Math.min(zoomLevels.length - 1, Math.max(0, from + step))];
+  return chrome.tabs.setZoom(tabId, target);
+}
+
+// F11처럼 전체 화면과 일반 상태를 오간다.
+async function toggleFullscreen(windowId) {
+  const window = await chrome.windows.get(windowId);
+  return chrome.windows.update(windowId, { state: window.state === "fullscreen" ? "normal" : "fullscreen" });
+}
+
 async function execute(action, tab, frameId) {
   switch (action) {
     case "back": return chrome.tabs.goBack(tab.id);
@@ -10,6 +28,11 @@ async function execute(action, tab, frameId) {
     case "newWindow": return chrome.windows.create({ type: "normal", focused: true, incognito: !!tab.incognito });
     case "closeTab": return chrome.tabs.remove(tab.id);
     case "reload": return chrome.tabs.reload(tab.id);
+    case "hardReload": return chrome.tabs.reload(tab.id, { bypassCache: true });
+    case "zoomIn": return zoom(tab.id, 1);
+    case "zoomOut": return zoom(tab.id, -1);
+    case "zoomReset": return chrome.tabs.setZoom(tab.id, 0);
+    case "fullscreen": return toggleFullscreen(tab.windowId);
     case "duplicateTab": return chrome.tabs.duplicate(tab.id);
     case "muteTab": return chrome.tabs.update(tab.id, { muted: !tab.mutedInfo?.muted });
     case "restoreTab": {

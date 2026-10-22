@@ -175,15 +175,30 @@
     showGestureLabel(finished);
     hideTimer = setTimeout(hide, 750);
     if (!rule) return;
-    chrome.runtime.sendMessage({ type: "glide:gesture", gesture: finished.sequence }).then(response => {
+    // 확장이 리로드·업데이트된 직후에는 이 탭의 컨텍스트가 무효화되어
+    // sendMessage가 동기 예외를 던진다. 그대로 두면 페이지 콘솔에 Uncaught 오류가 남으므로
+    // 새로고침 안내로 바꾼다.
+    let request;
+    try {
+      request = chrome.runtime.sendMessage({ type: "glide:gesture", gesture: finished.sequence });
+    } catch {
+      showUnavailable();
+      return;
+    }
+    request.then(response => {
       if (response?.ok || gesture || !overlay?.isConnected) return;
       showNotice(finished.sequence, response?.error || "실행할 수 없습니다.");
       clearTimeout(hideTimer);
       hideTimer = setTimeout(hide, 2000);
-    }).catch(() => {
-      if (gesture || !overlay?.isConnected) return;
-      showNotice("", "확장이 업데이트되었습니다. 페이지를 새로고침해 주세요.");
-    });
+    }).catch(showUnavailable);
+  }
+
+  // 확장 컨텍스트가 무효화됐을 때(업데이트·리로드 직후) 보여 줄 안내.
+  function showUnavailable() {
+    if (gesture || !overlay?.isConnected) return;
+    showNotice("", "확장이 업데이트되었습니다. 페이지를 새로고침해 주세요.");
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(hide, 2000);
   }
 
   function onKeyDown(event) {
