@@ -259,7 +259,8 @@
       target = target.parentElement || target.getRootNode()?.host;
     }
     target ||= document.scrollingElement;
+    // Home/End처럼 중간 애니메이션 없이 즉시 이동한다.
     target?.scrollTo({ top: message.edge === "scrollTop" ? 0 : target.scrollHeight,
-      behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
+      behavior: "instant" });
   });
 })();

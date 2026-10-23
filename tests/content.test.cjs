@@ -23,18 +23,19 @@ async function loadContentScript() {
     hidden: false, fullscreenElement: null, body: null,
     documentElement: { hasPointerCapture: () => false, releasePointerCapture() {}, setPointerCapture() {} }
   });
+  const runtimeHandlers = [];
   const chrome = {
-    runtime: { id: "test-extension", onMessage: { addListener() {} } },
+    runtime: { id: "test-extension", onMessage: { addListener(fn) { runtimeHandlers.push(fn); } } },
     storage: { local: { get: async () => ({}) }, onChanged: { addListener() {} } }
   };
   const context = vm.createContext({ window, document, chrome, console, setTimeout, clearTimeout,
-    performance, structuredClone, KeyboardEvent: class {} });
+    performance, structuredClone, KeyboardEvent: class {}, Element: class Element {} });
   vm.runInContext(source("shared.js"), context);
   const defaults = vm.runInContext("structuredClone(GestureKit.defaults)", context);
   chrome.storage.local.get = async () => ({ settings: defaults });
   vm.runInContext(source("content.js"), context);
   await new Promise(resolve => setTimeout(resolve, 0)); // 설정 읽기 완료 대기
-  return { window, document, defaults };
+  return { window, document, defaults, runtimeHandlers };
 }
 
 const pointerdown = { isTrusted: true, button: 2, buttons: 2, pointerId: 1, clientX: 100, clientY: 100,
@@ -72,4 +73,22 @@ test("gestures can still start when settings are enabled", async () => {
   window.dispatch("pointerdown", pointerdown);
   assert.equal(window.count("pointerup"), 1);
   window.dispatch("pointerup", pointerup);
+});
+
+test("scroll gestures jump instantly like Home and End", async () => {
+  const { document, runtimeHandlers } = await loadContentScript();
+  const calls = [];
+  document.scrollingElement = {
+    scrollHeight: 2400,
+    scrollTo(options) { calls.push(options); }
+  };
+  const listener = runtimeHandlers[0];
+  listener({ type: "glide:scroll", edge: "scrollTop" }, { id: "test-extension" }, () => {});
+  listener({ type: "glide:scroll", edge: "scrollBottom" }, { id: "test-extension" }, () => {});
+  // smooth가 아니라 instant여야 키보드 Home/End와 같은 즉시 이동이 된다.
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].top, 0);
+  assert.equal(calls[0].behavior, "instant");
+  assert.equal(calls[1].top, 2400);
+  assert.equal(calls[1].behavior, "instant");
 });
