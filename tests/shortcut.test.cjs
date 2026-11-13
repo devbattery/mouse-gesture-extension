@@ -74,23 +74,38 @@ test("preserves old settings and validates and retains custom keyboard bindings"
   assert.equal(old.rules[0].action, "back");
   const value = kit.validateSettings({ ...old, rules: [...old.rules, { gesture: "RD", action: "keyboard", shortcut: "control+t" }] });
   assert.equal(value.rules.at(-1).shortcut, "Ctrl+T");
-  assert.match(kit.ruleLabel(value.rules.at(-1)), /Ctrl\+T.*새 탭/);
-  assert.match(kit.ruleLabel({ action: "keyboard", shortcut: "Ctrl+N" }), /Ctrl\+N.*새 창/);
-  assert.match(kit.ruleLabel({ action: "keyboard", shortcut: "Ctrl+Shift+R" }), /Ctrl\+Shift\+R.*강력 새로고침/);
-  assert.match(kit.ruleLabel({ action: "keyboard", shortcut: "F11" }), /F11.*전체 화면/);
-  assert.match(kit.ruleLabel({ action: "keyboard", shortcut: "F" }), /웹페이지/);
+  assert.match(kit.ruleLabel(value.rules.at(-1)), /^새 탭 · Ctrl\+T$/);
+  assert.match(kit.ruleLabel({ action: "keyboard", shortcut: "Ctrl+N" }), /^새 창 · Ctrl\+N$/);
+  assert.match(kit.ruleLabel({ action: "keyboard", shortcut: "Ctrl+Shift+R" }), /^강력 새로고침 · Ctrl\+Shift\+R$/);
+  assert.match(kit.ruleLabel({ action: "keyboard", shortcut: "F11" }), /^전체 화면 전환 · F11$/);
+  assert.match(kit.ruleLabel({ action: "keyboard", shortcut: "F" }), /^웹페이지 단축키 · F$/);
   assert.throws(() => kit.validateSettings({ ...old, rules: [{ gesture: "RD", action: "keyboard" }] }));
 });
 
 test("built-in action labels include native shortcuts or an explicit no-shortcut note", () => {
-  assert.match(kit.ruleLabel({ action: "reload" }), /Ctrl \/ ⌘ \+ R.*새로고침/);
-  assert.match(kit.ruleLabel({ action: "scrollBottom" }), /End.*맨 아래로/);
-  assert.match(kit.ruleLabel({ action: "duplicateTab" }), /탭 복제.*기본 단축키 없음/);
-  assert.match(kit.ruleLabel({ action: "muteTab" }), /탭 음소거.*기본 단축키 없음/);
+  assert.match(kit.ruleLabel({ action: "reload" }), /^새로고침 · Ctrl \/ ⌘ \+ R$/);
+  assert.match(kit.ruleLabel({ action: "scrollBottom" }), /^맨 아래로 · End$/);
+  assert.match(kit.ruleLabel({ action: "duplicateTab" }), /^탭 복제 · 기본 단축키 없음$/);
+  assert.match(kit.ruleLabel({ action: "muteTab" }), /^탭 음소거 켜기 \/ 끄기 · 기본 단축키 없음$/);
   // 화면에 표시되는 모든 내장 동작이 라벨과 단축키(또는 없음 안내)를 함께 가진다.
   for (const [id, action] of Object.entries(kit.actions)) {
     const label = kit.ruleLabel({ action: id });
     assert.ok(label.includes(action.label), `${id}: 동작 이름 누락`);
     assert.ok(action.shortcut ? label.includes(action.shortcut) : label.includes("기본 단축키 없음"), `${id}: 단축키 안내 누락`);
   }
+});
+
+test("labels lead with the action name and split into title and detail for the overlay", () => {
+  // 목록·오버레이 모두 동작 이름이 먼저 오고 단축키가 뒤따른다.
+  assert.deepEqual({ ...kit.ruleParts({ action: "closeTab" }) }, { title: "현재 탭 닫기", detail: "Ctrl / ⌘ + W" });
+  assert.deepEqual({ ...kit.ruleParts({ action: "muteTab" }) }, { title: "탭 음소거 켜기 / 끄기", detail: "기본 단축키 없음" });
+  assert.deepEqual({ ...kit.ruleParts({ action: "keyboard", shortcut: "Ctrl+K" }) }, { title: "웹페이지 단축키", detail: "Ctrl+K" });
+  assert.deepEqual({ ...kit.ruleParts({ action: "keyboard", shortcut: "Ctrl+W" }) }, { title: "현재 탭 닫기", detail: "Ctrl+W" });
+  assert.equal(kit.actionLabel("back"), "뒤로 가기 · Alt + ← / ⌘ + [");
+});
+
+test("every built-in action belongs to exactly one listed group", () => {
+  const groups = new Set(kit.actionGroups.map(group => group.id));
+  assert.equal(groups.size, kit.actionGroups.length);
+  for (const [id, action] of Object.entries(kit.actions)) assert.ok(groups.has(action.group), `${id}: 분류 누락`);
 });

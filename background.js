@@ -55,6 +55,27 @@ async function execute(action, tab, frameId) {
   }
 }
 
+// 서비스 워커가 살아 있는 동안 검증된 설정을 메모리에 보관한다.
+// 제스처마다 storage 왕복과 전체 설정 검증을 반복하지 않게 하고,
+// 설정이 바뀌면 즉시 무효화해 다음 제스처에서 새 값을 읽는다.
+// 워커가 종료되면 캐시도 함께 사라지므로 오래된 값이 남지 않는다.
+let settingsCache;
+function cachedSettings() {
+  if (!settingsCache) {
+    const pending = GestureKit.readSettings().catch(error => {
+      // 읽기·검증 실패는 캐시하지 않고 다음 요청에서 다시 시도한다.
+      // 그 사이 설정 변경으로 새 읽기가 캐시에 들어갔다면 그것은 지우지 않는다.
+      if (settingsCache === pending) settingsCache = undefined;
+      throw error;
+    });
+    settingsCache = pending;
+  }
+  return settingsCache;
+}
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "local" && changes.settings) settingsCache = undefined;
+});
+
 chrome.runtime.onMessage.addListener((message, sender, respond) => {
   if (message?.type !== "glide:gesture") return;
   if (sender.id !== chrome.runtime.id || !sender.tab || !GestureKit.validGesture(message.gesture)) {
@@ -62,11 +83,10 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
     return;
   }
   (async () => {
-    // 설정 읽기와 탭 조회는 서로 독립적이므로 동시에 시작해 왕복 대기 시간을 겹친다.
-    const [settings, tab] = await Promise.all([
-      GestureKit.readSettings(),
-      chrome.tabs.get(sender.tab.id)
-    ]);
+    // sender.tab은 메시지를 보낸 순간의 탭 정보(활성 여부·창·위치·음소거)를 담고 있어
+    // 별도 chrome.tabs.get 왕복 없이 그대로 쓴다.
+    const tab = sender.tab;
+    const settings = await cachedSettings();
     const rule = settings.rules.find(item => item.gesture === message.gesture);
     if (!settings.enabled || !rule) throw new Error("사용하지 않는 제스처입니다.");
     if (!tab.active) throw new Error("현재 보고 있는 탭에서만 실행할 수 있습니다.");

@@ -51,16 +51,26 @@ function bindingControls(rule, onChange, name) {
   placeholder.textContent = "동작을 선택하세요";
   placeholder.disabled = true;
   select.append(placeholder);
-  for (const [id, action] of Object.entries(actions)) {
-    const option = document.createElement("option");
-    option.value = id;
-    option.textContent = actionLabel(id);
-    select.append(option);
+  // 18개 동작을 페이지 이동·탭과 창·스크롤과 화면으로 묶어 훑어보기 쉽게 한다.
+  for (const group of GestureKit.actionGroups) {
+    const optgroup = document.createElement("optgroup");
+    optgroup.label = group.label;
+    for (const [id, action] of Object.entries(actions)) {
+      if (action.group !== group.id) continue;
+      const option = document.createElement("option");
+      option.value = id;
+      option.textContent = actionLabel(id);
+      optgroup.append(option);
+    }
+    select.append(optgroup);
   }
+  const customGroup = document.createElement("optgroup");
+  customGroup.label = "직접 지정";
   const custom = document.createElement("option");
   custom.value = "keyboard";
   custom.textContent = "직접 단축키 입력";
-  select.append(custom);
+  customGroup.append(custom);
+  select.append(customGroup);
   select.value = rule.action;
   const controls = document.createElement("div");
   controls.className = "shortcut-controls";
@@ -159,10 +169,43 @@ function bindingControls(rule, onChange, name) {
   return container;
 }
 
+// 제스처 방향을 작은 그림으로 그린 SVG. 장식용이므로 낭독기에서는 숨긴다.
+const svgNS = "http://www.w3.org/2000/svg";
+function glyphElement(sequence, size = 40) {
+  const { path, head, start } = GestureKit.gestureGlyph(sequence, size);
+  const svg = document.createElementNS(svgNS, "svg");
+  svg.setAttribute("viewBox", `0 0 ${size} ${size}`);
+  svg.setAttribute("fill", "none");
+  svg.setAttribute("aria-hidden", "true");
+  for (const d of [path, head]) {
+    const line = document.createElementNS(svgNS, "path");
+    line.setAttribute("d", d);
+    line.setAttribute("stroke", "currentColor");
+    line.setAttribute("stroke-width", String(size * 0.065));
+    line.setAttribute("stroke-linecap", "round");
+    line.setAttribute("stroke-linejoin", "round");
+    svg.append(line);
+  }
+  const dot = document.createElementNS(svgNS, "circle");
+  dot.setAttribute("cx", start[0]);
+  dot.setAttribute("cy", start[1]);
+  dot.setAttribute("r", String(size * 0.065));
+  dot.setAttribute("fill", "currentColor");
+  svg.append(dot);
+  return svg;
+}
+
+// 감도 미리보기: 점선 원의 반지름을 실제 인식 거리(px)와 같게 맞춘다.
+function renderThreshold() {
+  $("#distance").value = `${settings.threshold} px`;
+  $("#sens-ring").style.setProperty("--r", `${settings.threshold}px`);
+}
+
 function render() {
   $("#enabled").checked = settings.enabled;
   $("#threshold").value = settings.threshold;
-  $("#distance").value = `${settings.threshold} px`;
+  renderThreshold();
+  $("#rule-count").textContent = settings.rules.length ? `${settings.rules.length}개` : "";
   $("#empty").hidden = settings.rules.length !== 0;
   $("#add").disabled = settings.rules.length >= 64;
   $("#rules").replaceChildren();
@@ -170,15 +213,23 @@ function render() {
     const row = document.createElement("tr");
     const gestureCell = row.insertCell();
     const button = document.createElement("button");
+    button.type = "button";
     button.className = "gesture-button";
-    button.textContent = arrows(rule.gesture);
+    const glyph = document.createElement("span");
+    glyph.className = "glyph";
+    glyph.append(glyphElement(rule.gesture));
+    const label = document.createElement("span");
+    label.className = "gesture-arrows";
+    label.textContent = arrows(rule.gesture);
+    button.append(glyph, label);
     button.setAttribute("aria-label", `${arrows(rule.gesture)} 제스처 다시 그리기`);
     button.addEventListener("click", () => openRecorder(index));
     gestureCell.append(button);
     row.insertCell().append(bindingControls(rule, dirty, arrows(rule.gesture)));
     const remove = document.createElement("button");
     remove.className = "icon-button";
-    remove.textContent = "×";
+    remove.type = "button";
+    remove.innerHTML = '<svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true"><path d="M3.5 5h11M7.5 2.8h3M5 5l.7 9.2a1.5 1.5 0 0 0 1.5 1.3h3.6a1.5 1.5 0 0 0 1.5-1.3L13 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
     remove.setAttribute("aria-label", `${arrows(rule.gesture)} 제스처 삭제`);
     remove.addEventListener("click", () => {
       settings.rules.splice(index, 1);
@@ -197,6 +248,7 @@ function clearRecord() {
   recorded = "";
   recordTrail.clear();
   $("#record-placeholder").hidden = false;
+  showRecordedSequence("");
   $("#recorded").textContent = "아직 그리지 않았어요";
   $("#record-error").textContent = "";
   $("#use-record").disabled = true;
@@ -224,30 +276,46 @@ function validateRecord() {
 }
 
 $("#draw-area").addEventListener("contextmenu", event => event.preventDefault());
+// 그리는 동안의 표시(화살표 글자·그림)는 방향이 바뀔 때만 다시 만든다.
+let shownSequence;
+function showRecordedSequence(sequence) {
+  if (sequence === shownSequence) return;
+  shownSequence = sequence;
+  $("#record-glyph").replaceChildren(...(sequence ? [glyphElement(sequence, 52)] : []));
+  // 화살표일 때만 크게·넓은 자간으로, 안내 문구일 때는 보통 글자로 보여 준다.
+  $("#recorded").classList.toggle("arrows", !!sequence);
+  if (sequence) $("#recorded").textContent = arrows(sequence);
+}
+
+// 그리기 영역의 위치는 그리는 동안 바뀌지 않으므로 pointerdown에서 한 번만 잰다.
+let drawRect;
 $("#draw-area").addEventListener("pointerdown", event => {
   if (event.button !== 2 || event.buttons !== 2) return;
   clearRecord();
-  const rect = event.currentTarget.getBoundingClientRect();
+  drawRect = event.currentTarget.getBoundingClientRect();
   recording = new Gesture(event.clientX, event.clientY, settings.threshold);
   recordingPointer = event.pointerId;
   event.currentTarget.setPointerCapture(event.pointerId);
-  recordTrail.start(event.clientX - rect.left, event.clientY - rect.top);
+  // 다크 모드에서도 궤적이 강조색과 같도록 그릴 때마다 현재 테마 색을 읽는다.
+  recordTrail.color = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || recordTrail.color;
+  recordTrail.start(event.clientX - drawRect.left, event.clientY - drawRect.top, drawRect);
   $("#record-placeholder").hidden = true;
+  $("#recorded").textContent = "그리는 중…";
   event.preventDefault();
 });
 $("#draw-area").addEventListener("pointermove", event => {
   if (!recording || event.pointerId !== recordingPointer || !(event.buttons & 2)) return;
   recording.move(event.clientX, event.clientY);
-  const rect = event.currentTarget.getBoundingClientRect();
-  recordTrail.add(event.clientX - rect.left, event.clientY - rect.top);
-  $("#recorded").textContent = arrows(recording.sequence) || "그리는 중…";
+  recordTrail.add(event.clientX - drawRect.left, event.clientY - drawRect.top);
+  if (!recording.invalid) showRecordedSequence(recording.sequence);
 });
 $("#draw-area").addEventListener("pointerup", event => {
   if (!recording || event.pointerId !== recordingPointer || event.button !== 2) return;
   recording.move(event.clientX, event.clientY);
   recorded = recording.invalid ? "" : recording.sequence;
   recording = undefined;
-  $("#recorded").textContent = arrows(recorded) || "조금 더 길고 분명하게 그려 주세요";
+  showRecordedSequence(recorded);
+  if (!recorded) $("#recorded").textContent = "조금 더 길고 분명하게 그려 주세요";
   validateRecord();
 });
 $("#draw-area").addEventListener("pointercancel", clearRecord);
@@ -270,7 +338,7 @@ $("#add").addEventListener("click", () => openRecorder());
 $("#enabled").addEventListener("change", event => { settings.enabled = event.target.checked; dirty(); });
 $("#threshold").addEventListener("input", event => {
   settings.threshold = Number(event.target.value);
-  $("#distance").value = `${settings.threshold} px`;
+  renderThreshold();
   dirty();
 });
 $("#reset").addEventListener("click", () => {

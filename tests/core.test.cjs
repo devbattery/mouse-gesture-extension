@@ -79,3 +79,30 @@ test("trail frees the canvas backing store when a gesture ends", () => {
   assert.equal(canvas.width, 0);
   assert.equal(canvas.height, 0);
 });
+
+test("trail uses a caller-supplied size without measuring layout", () => {
+  const context = { clearRect() {}, scale() {}, beginPath() {}, moveTo() {}, quadraticCurveTo() {}, lineTo() {}, stroke() {} };
+  // getBoundingClientRect를 부르면 실패하게 해 강제 레이아웃 경로를 타지 않는지 확인한다.
+  const canvas = { width: 0, height: 0, getBoundingClientRect() { throw new Error("layout read"); }, getContext: () => context };
+  const trailKit = vm.runInNewContext(source + "; GestureKit", { structuredClone, devicePixelRatio: 1.5,
+    requestAnimationFrame: callback => { callback(); return 1; }, cancelAnimationFrame() {} });
+  const trail = new trailKit.Trail(canvas, "#123456");
+  trail.start(0, 0, { width: 1000, height: 500 });
+  assert.equal(canvas.width, 1500);
+  assert.equal(canvas.height, 750);
+  assert.equal(context.strokeStyle, "#123456");
+});
+
+test("gesture glyphs fit the box, start at the first point, and separate reversals", () => {
+  for (const sequence of ["L", "R", "U", "D", "DR", "UD", "DRUL", "LRLRLRLRLRLR"]) {
+    const glyph = kit.gestureGlyph(sequence, 40);
+    const numbers = (glyph.path + glyph.head).match(/-?\d+(\.\d+)?/g).map(Number);
+    // 화살촉까지 포함해 모든 좌표가 그림 영역 안에 있다.
+    for (const value of numbers) assert.ok(value >= 0 && value <= 40, `${sequence}: ${value}`);
+    assert.ok(glyph.path.startsWith(`M${glyph.start[0]} ${glyph.start[1]}`));
+  }
+  // 위→아래 왕복은 같은 선을 되짚지 않고 옆으로 비켜 세 구간이 된다.
+  assert.equal(kit.gestureGlyph("UD").path.split("L").length, 4);
+  assert.equal(kit.gestureGlyph("DR").path.split("L").length, 3);
+  assert.throws(() => kit.gestureGlyph("LL"));
+});

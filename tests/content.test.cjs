@@ -29,7 +29,8 @@ async function loadContentScript() {
     storage: { local: { get: async () => ({}) }, onChanged: { addListener() {} } }
   };
   const context = vm.createContext({ window, document, chrome, console, setTimeout, clearTimeout,
-    performance, structuredClone, KeyboardEvent: class {}, Element: class Element {} });
+    performance, structuredClone, KeyboardEvent: class {}, Element: class Element {},
+    devicePixelRatio: 1, requestAnimationFrame: () => 1, cancelAnimationFrame() {} });
   vm.runInContext(source("shared.js"), context);
   const defaults = vm.runInContext("structuredClone(GestureKit.defaults)", context);
   chrome.storage.local.get = async () => ({ settings: defaults });
@@ -91,4 +92,43 @@ test("scroll gestures jump instantly like Home and End", async () => {
   assert.equal(calls[0].behavior, "instant");
   assert.equal(calls[1].top, 2400);
   assert.equal(calls[1].behavior, "instant");
+});
+
+// 오버레이에 필요한 최소 DOM 스텁. 레이아웃을 읽는 getBoundingClientRect는 호출되면 실패한다.
+function fakeElement(tag, created) {
+  const element = {
+    tag, style: {}, dataset: {}, children: [], attributes: {}, className: "", textContent: "", parentNode: null,
+    isConnected: false, width: 0, height: 0,
+    setAttribute(name, value) { this.attributes[name] = value; },
+    append(...nodes) { for (const node of nodes) { node.parentNode = this; this.children.push(node); } },
+    replaceChildren(...nodes) { this.children = []; this.append(...nodes); },
+    remove() { this.parentNode = null; this.isConnected = false; },
+    attachShadow() { return fakeElement("#shadow", created); },
+    getBoundingClientRect() { throw new Error("layout read"); },
+    getContext() { return { clearRect() {}, scale() {}, beginPath() {}, moveTo() {}, quadraticCurveTo() {}, lineTo() {}, stroke() {} }; }
+  };
+  created.push(element);
+  return element;
+}
+
+test("gesture overlay sizes the canvas from the pointerdown viewport and shows title and detail", async () => {
+  const created = [];
+  const { window, document } = await loadContentScript();
+  Object.assign(window, { innerWidth: 1300, innerHeight: 700 });
+  document.createElement = tag => fakeElement(tag, created);
+  document.documentElement.append = function (node) { node.parentNode = this; node.isConnected = true; };
+  window.dispatch("pointerdown", pointerdown);
+  // 창 크기가 pointerdown 뒤에 바뀌어도(실제로는 resize로 취소됨) 측정값은 pointerdown 시점 값이다.
+  window.dispatch("pointermove", { ...pointerdown, buttons: 2, clientX: 100, clientY: 160, cancelable: true, preventDefault() {} });
+  const canvas = created.find(item => item.tag === "canvas");
+  assert.equal(canvas.style.width, "1300px");
+  assert.equal(canvas.style.height, "700px");
+  const hud = created.find(item => item.className === "hud");
+  // D(아래) 기본 제스처는 "새 탭"이다: 큰 글자는 동작 이름, 작은 글자는 단축키.
+  const texts = Object.fromEntries(created.filter(item => ["seq", "title", "detail"].includes(item.className))
+    .map(item => [item.className, item.textContent]));
+  assert.deepEqual(texts, { seq: "↓", title: "새 탭", detail: "Ctrl / ⌘ + T" });
+  assert.equal(hud.dataset.tone, "ok");
+  window.dispatch("keydown", { key: "Escape" });
+  assert.equal(canvas.width, 0);
 });

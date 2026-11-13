@@ -1,25 +1,31 @@
 /* Shared by the content script, settings page, and service worker. */
 globalThis.GestureKit = (() => {
+  // group: 설정 화면의 동작 목록을 optgroup으로 묶는 분류(페이지 이동·탭과 창·스크롤과 화면).
   const actions = {
-    back: { label: "뒤로 가기", shortcut: "Alt + ← / ⌘ + [" },
-    forward: { label: "앞으로 가기", shortcut: "Alt + → / ⌘ + ]" },
-    newTab: { label: "새 탭", shortcut: "Ctrl / ⌘ + T" },
-    newWindow: { label: "새 창", shortcut: "Ctrl / ⌘ + N" },
-    closeTab: { label: "현재 탭 닫기", shortcut: "Ctrl / ⌘ + W" },
-    reload: { label: "새로고침", shortcut: "Ctrl / ⌘ + R" },
-    hardReload: { label: "강력 새로고침", shortcut: "Shift + F5 / Ctrl / ⌘ + Shift + R" },
-    restoreTab: { label: "닫은 탭 다시 열기", shortcut: "Ctrl / ⌘ + Shift + T" },
-    previousTab: { label: "이전 탭", shortcut: "Ctrl + Shift + Tab" },
-    nextTab: { label: "다음 탭", shortcut: "Ctrl + Tab" },
-    scrollTop: { label: "맨 위로", shortcut: "Home" },
-    scrollBottom: { label: "맨 아래로", shortcut: "End" },
-    zoomIn: { label: "확대", shortcut: "Ctrl / ⌘ + +" },
-    zoomOut: { label: "축소", shortcut: "Ctrl / ⌘ + -" },
-    zoomReset: { label: "원래 크기로", shortcut: "Ctrl / ⌘ + 0" },
-    fullscreen: { label: "전체 화면 전환", shortcut: "F11" },
-    duplicateTab: { label: "탭 복제", shortcut: "" },
-    muteTab: { label: "탭 음소거 켜기 / 끄기", shortcut: "" }
+    back: { label: "뒤로 가기", shortcut: "Alt + ← / ⌘ + [", group: "page" },
+    forward: { label: "앞으로 가기", shortcut: "Alt + → / ⌘ + ]", group: "page" },
+    reload: { label: "새로고침", shortcut: "Ctrl / ⌘ + R", group: "page" },
+    hardReload: { label: "강력 새로고침", shortcut: "Shift + F5 / Ctrl / ⌘ + Shift + R", group: "page" },
+    newTab: { label: "새 탭", shortcut: "Ctrl / ⌘ + T", group: "tab" },
+    newWindow: { label: "새 창", shortcut: "Ctrl / ⌘ + N", group: "tab" },
+    closeTab: { label: "현재 탭 닫기", shortcut: "Ctrl / ⌘ + W", group: "tab" },
+    restoreTab: { label: "닫은 탭 다시 열기", shortcut: "Ctrl / ⌘ + Shift + T", group: "tab" },
+    previousTab: { label: "이전 탭", shortcut: "Ctrl + Shift + Tab", group: "tab" },
+    nextTab: { label: "다음 탭", shortcut: "Ctrl + Tab", group: "tab" },
+    duplicateTab: { label: "탭 복제", shortcut: "", group: "tab" },
+    muteTab: { label: "탭 음소거 켜기 / 끄기", shortcut: "", group: "tab" },
+    scrollTop: { label: "맨 위로", shortcut: "Home", group: "view" },
+    scrollBottom: { label: "맨 아래로", shortcut: "End", group: "view" },
+    zoomIn: { label: "확대", shortcut: "Ctrl / ⌘ + +", group: "view" },
+    zoomOut: { label: "축소", shortcut: "Ctrl / ⌘ + -", group: "view" },
+    zoomReset: { label: "원래 크기로", shortcut: "Ctrl / ⌘ + 0", group: "view" },
+    fullscreen: { label: "전체 화면 전환", shortcut: "F11", group: "view" }
   };
+  const actionGroups = [
+    { id: "page", label: "페이지 이동" },
+    { id: "tab", label: "탭과 창" },
+    { id: "view", label: "스크롤과 화면" }
+  ];
   const defaults = {
     enabled: true,
     threshold: 22,
@@ -125,16 +131,26 @@ globalThis.GestureKit = (() => {
   }
 
   // 동작 목록과 제스처 안내에서 같은 형식으로 보여 주기 위한 라벨.
+  // 목록을 동작 이름으로 훑을 수 있도록 이름을 앞에, 단축키를 뒤에 둔다.
   // 브라우저 기본 단축키가 없는 동작도 빈칸 대신 이유를 표시한다.
   function actionLabel(id) {
     const action = actions[id];
-    return action.shortcut ? `${action.shortcut} · ${action.label}` : `${action.label} · 기본 단축키 없음`;
+    return `${action.label} · ${action.shortcut || "기본 단축키 없음"}`;
+  }
+
+  // 오버레이 안내용: 큰 글자(title)와 보조 글자(detail)를 나눠 돌려준다.
+  function ruleParts(rule) {
+    if (rule.action !== "keyboard") {
+      const action = actions[rule.action];
+      return { title: action.label, detail: action.shortcut || "기본 단축키 없음" };
+    }
+    const action = shortcutAction(rule.shortcut);
+    return { title: action ? actions[action].label : "웹페이지 단축키", detail: rule.shortcut };
   }
 
   function ruleLabel(rule) {
-    if (rule.action !== "keyboard") return actionLabel(rule.action);
-    const action = shortcutAction(rule.shortcut);
-    return `${rule.shortcut} · ${action ? actions[action].label : "웹페이지 단축키"}`;
+    const { title, detail } = ruleParts(rule);
+    return `${title} · ${detail}`;
   }
 
   // 제스처 규칙 배열을 검증하고 저장·내보내기에 필요한 필드만 남긴다.
@@ -213,6 +229,48 @@ globalThis.GestureKit = (() => {
     return validateRules(gestures);
   }
 
+  // 방향 문자열을 작은 그림(SVG 경로)으로 바꾼다. 설정 화면 목록에서
+  // 화살표 글자보다 손동작 모양을 한눈에 알아보게 하려는 용도다.
+  // 반대 방향으로 꺾이는 구간(예: UD)은 같은 선을 되짚어 겹치지 않도록
+  // 진행 방향의 수직으로 반 칸 비켜 그린다. size는 정사각형 그림 한 변(px)이다.
+  function gestureGlyph(sequence, size = 40) {
+    if (!validGesture(sequence)) throw new Error("올바르지 않은 제스처입니다.");
+    const steps = { L: [-1, 0], R: [1, 0], U: [0, -1], D: [0, 1] };
+    const points = [[0, 0]];
+    let previous;
+    for (const char of sequence) {
+      const step = steps[char];
+      let [x, y] = points.at(-1);
+      if (previous && previous[0] === -step[0] && previous[1] === -step[1]) {
+        // 세로 왕복은 오른쪽으로, 가로 왕복은 아래쪽으로 비켜 간다.
+        if (step[0] === 0) x += 0.5; else y += 0.5;
+        points.push([x, y]);
+      }
+      points.push([x + step[0], y + step[1]]);
+      previous = step;
+    }
+    const xs = points.map(point => point[0]);
+    const ys = points.map(point => point[1]);
+    const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+    // 가장 긴 변을 그림 영역의 60%에 맞추고 가운데 정렬한다.
+    const scale = size * 0.6 / Math.max(maxX - minX, maxY - minY, 1);
+    const round = value => Math.round(value * 10) / 10;
+    const placed = points.map(([x, y]) => [
+      round(size / 2 + (x - (minX + maxX) / 2) * scale),
+      round(size / 2 + (y - (minY + maxY) / 2) * scale)
+    ]);
+    // 끝점에 진행 방향을 가리키는 화살촉(두 짧은 선)을 붙인다.
+    const [ex, ey] = placed.at(-1);
+    const [dx, dy] = previous;
+    const head = size * 0.125;
+    return {
+      path: `M${placed.map(point => point.join(" ")).join("L")}`,
+      head: `M${round(ex - dx * head + dy * head)} ${round(ey - dy * head + dx * head)}L${ex} ${ey}` +
+        `L${round(ex - dx * head - dy * head)} ${round(ey - dy * head - dx * head)}`,
+      start: placed[0]
+    };
+  }
+
   class Gesture {
     constructor(x, y, threshold = 22) {
       this.x = x;
@@ -242,21 +300,27 @@ globalThis.GestureKit = (() => {
   }
 
   class Trail {
-    constructor(canvas) {
+    constructor(canvas, color = "#6b5bf0") {
       this.canvas = canvas;
+      this.color = color;
       this.context = canvas.getContext("2d");
       this.frame = 0;
       this.queue = [];
     }
 
-    start(x, y) {
+    // size({ width, height }, CSS px)를 알고 있으면 그대로 쓴다. 웹페이지에서
+    // 오버레이를 붙인 직후 getBoundingClientRect()를 부르면 페이지 전체의
+    // 동기 레이아웃(강제 리플로우)이 일어나므로, 호출 측이 레이아웃이 깨끗한
+    // pointerdown 시점에 읽어 둔 뷰포트 크기를 넘긴다.
+    start(x, y, size) {
       this.clear();
       const ratio = Math.min(devicePixelRatio || 1, 2);
-      const rect = this.canvas.getBoundingClientRect();
+      const rect = size || this.canvas.getBoundingClientRect();
       this.canvas.width = Math.ceil(rect.width * ratio);
       this.canvas.height = Math.ceil(rect.height * ratio);
+      // 캔버스 크기를 바꾸면 컨텍스트 상태가 초기화되므로 배율·선 스타일을 다시 설정한다.
       this.context.scale(ratio, ratio);
-      Object.assign(this.context, { strokeStyle: "#7667f5", lineWidth: 4, lineCap: "round", lineJoin: "round" });
+      Object.assign(this.context, { strokeStyle: this.color, lineWidth: 4, lineCap: "round", lineJoin: "round" });
       this.last = { x, y };
     }
 
@@ -302,6 +366,6 @@ globalThis.GestureKit = (() => {
 
   const arrows = sequence => [...sequence].map(char => ({ L: "←", R: "→", U: "↑", D: "↓" })[char]).join(" ");
   const readSettings = async () => validateSettings((await chrome.storage.local.get("settings")).settings);
-  return { actions, defaults, validGesture, validateSettings, validateRules, createGestureBackup, parseGestureBackup, readSettings, Gesture, Trail, arrows,
+  return { actions, actionGroups, defaults, gestureGlyph, ruleParts, validGesture, validateSettings, validateRules, createGestureBackup, parseGestureBackup, readSettings, Gesture, Trail, arrows,
     parseShortcut, shortcutFromEvent, shortcutAction, actionLabel, ruleLabel, continuesGesture };
 })();

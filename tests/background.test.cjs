@@ -7,12 +7,15 @@ const vm = require("node:vm");
 function worker(rule, extra = {}) {
   let listener;
   const calls = [];
+  const reads = { count: 0 };
+  const changeListeners = [];
   const tab = { id: 5, windowId: 2, index: 1, active: true, mutedInfo: { muted: false } };
   const record = name => async (...args) => { calls.push([name, ...args]); };
   const chrome = {
     action: { onClicked: { addListener() {} } },
     runtime: { id: "test-extension", onMessage: { addListener(fn) { listener = fn; } } },
-    storage: { local: { get: async () => ({ settings: { enabled: true, threshold: 22, rules: [rule], ...extra } }) } },
+    storage: { local: { get: async () => { reads.count++; return { settings: { enabled: true, threshold: 22, rules: [rule], ...extra } }; } },
+      onChanged: { addListener(fn) { changeListeners.push(fn); } } },
     tabs: { get: async () => tab, query: async () => [{ id: 9, index: 2 }, tab, { id: 1, index: 0 }],
       goBack: record("back"), goForward: record("forward"), create: record("create"),
       remove: record("remove"), reload: record("reload"), update: record("update"),
@@ -25,7 +28,7 @@ function worker(rule, extra = {}) {
   for (const file of ["shared.js", "background.js"]) vm.runInContext(fs.readFileSync(path.join(__dirname, "..", file), "utf8"), context);
   const send = (message = { type: "glide:gesture", gesture: rule.gesture }, sender = { id: chrome.runtime.id, tab, frameId: 7 }) =>
     new Promise(resolve => listener(message, sender, resolve));
-  return { send, calls, chrome, tab };
+  return { send, calls, chrome, tab, reads, changeListeners };
 }
 
 test("hard reload, zoom, and fullscreen map to browser APIs", async () => {
@@ -163,4 +166,35 @@ test("new-window API errors are reported without falling back to website keys", 
   app.chrome.windows.create = async () => { throw new Error("Window creation failed"); };
   assert.equal((await app.send()).error, "Window creation failed");
   assert.equal(app.calls.length, 0);
+});
+
+test("settings are cached between gestures and re-read after a storage change", async () => {
+  const app = worker({ gesture: "L", action: "back" });
+  assert.equal((await app.send()).ok, true);
+  assert.equal((await app.send()).ok, true);
+  // 같은 워커에서 두 번째 제스처는 저장소를 다시 읽지 않는다.
+  assert.equal(app.reads.count, 1);
+  // 다른 영역·다른 키의 변경은 캐시를 버리지 않는다.
+  for (const listener of app.changeListeners) listener({ other: {} }, "local");
+  for (const listener of app.changeListeners) listener({ settings: {} }, "sync");
+  await app.send();
+  assert.equal(app.reads.count, 1);
+  // 설정을 바꾸면 다음 제스처에서 새 값을 읽어 반영한다.
+  app.chrome.storage.local.get = async () => {
+    app.reads.count++;
+    return { settings: { enabled: true, threshold: 22, rules: [{ gesture: "L", action: "forward" }] } };
+  };
+  for (const listener of app.changeListeners) listener({ settings: {} }, "local");
+  assert.equal((await app.send()).ok, true);
+  assert.equal(app.reads.count, 2);
+  assert.equal(app.calls.at(-1)[0], "forward");
+});
+
+test("failed settings reads are not cached", async () => {
+  const app = worker({ gesture: "L", action: "back" });
+  const original = app.chrome.storage.local.get;
+  app.chrome.storage.local.get = async () => { throw new Error("storage busy"); };
+  assert.equal((await app.send()).error, "storage busy");
+  app.chrome.storage.local.get = original;
+  assert.equal((await app.send()).ok, true);
 });
